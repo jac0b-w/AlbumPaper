@@ -23,7 +23,7 @@ Once you are on the app page go to EDIT SETTINGS > Redirect URIs, enter ``` http
 
 Copy and paste the Client ID and Client Secret into the config.ini file.
 
-<img src = readme_images/image3.png width=1000>
+<img src = readme_images/image3.png width=700>
 
 ## Running the code
 Install the dependencies ```pip install -r requirements.txt``` and run album-art-wallpaper.py ```python album-art-wallpaper.py```
