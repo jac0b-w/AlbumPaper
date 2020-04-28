@@ -14,10 +14,13 @@ There is a short initial setup:
 
 ### Getting your API Keys
 Head over to the [Spotify developer dashboard](https://www.google.com) and create a non-commercial app, call it whatever you like, select any use case and give it a description.
+![](readme_images/image1.png)
 
 Once you are on the app page go to EDIT SETTINGS > Redirect URIs, enter ``` http://localhost:5000/callback/ ``` exactly and make sure to save it.
+![](readme_images/image2.png)
 
 Copy and paste the Client ID and Client Secret into the config.ini file.
+![](readme_images/image3.png)
 
 ### Running the code
 Install the dependencies ```pip install -r requirements.txt``` and run album-art-wallpaper.py ```python album-art-wallpaper.py```
@@ -27,3 +30,6 @@ There are two settings in the config.ini file:
 
 - ```request_interval``` controls how often a request is sent to the Spotify Web API.
 - ```resize_art``` when true will resize the 640px album art to fit on the smallest axis.
+
+## Example
+![](readme_images/example_wallpaper.png)
