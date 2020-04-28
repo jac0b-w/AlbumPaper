@@ -19,10 +19,10 @@ Once you are on the app page go to EDIT SETTINGS > Redirect URIs, enter ``` http
 
 Copy and paste the Client ID and Client Secret into the config.ini file.
 
-### Running the code
+## Running the code
 Install the dependencies ```pip install -r requirements.txt``` and run album-art-wallpaper.py ```python album-art-wallpaper.py```
 
-## Settings
+### Settings
 There are two settings in the config.ini file:
 
 - ```request_interval``` controls how often a request is sent to the Spotify Web API.
