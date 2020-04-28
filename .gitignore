@@ -1,0 +1,5 @@
+config.ini
+/env
+/.vscode
+/__pycache__
+/images
