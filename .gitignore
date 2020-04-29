@@ -5,3 +5,4 @@ config.ini
 /images
 .cache
 /exe
+config.ini
