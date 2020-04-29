@@ -4,3 +4,4 @@ config.ini
 /__pycache__
 /images
 .cache
+/exe
