@@ -43,6 +43,12 @@ def generate_wallpaper(file_name,resize):
     background.paste(art,(int((x-art.size[0])/2),int((y-art.size[1])/2)))
     background.save("images/generated_wallpaper.png")
 
+def set_default_wallpaper():
+    cached_folder = os.path.expandvars(r'%APPDATA%\Microsoft\Windows\Themes\CachedFiles\*')
+    list_of_files = glob.glob(cached_folder)
+    latest_file = max(list_of_files, key=os.path.getctime)
+    shutil.copy(latest_file, "images/default_wallpaper.jpg")
+
 class Worker(QtCore.QThread):
     # Worker thread
     @QtCore.Slot()
@@ -102,10 +108,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     #         print("single click")
 
     def set_default_wallpaper(self):
-        cached_folder = os.path.expandvars(r'%APPDATA%\Microsoft\Windows\Themes\CachedFiles\*')
-        list_of_files = glob.glob(cached_folder)
-        latest_file = max(list_of_files, key=os.path.getctime)
-        shutil.copy(latest_file, "images/default_wallpaper.jpg")
+        set_default_wallpaper()
         tray_icon.showMessage('Saved','Wallpaper saved as default')
 
 
@@ -142,6 +145,8 @@ with open(".cache","r") as f:
 if not os.path.exists('images'):
     os.makedirs('images')
 
+if not os.path.exists("images/default_wallpaper.jpg"):
+    set_default_wallpaper()
 
 sp = spotipy.Spotify(auth=token)
 
