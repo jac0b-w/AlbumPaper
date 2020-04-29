@@ -36,3 +36,4 @@ There are two settings in the config.ini file:
 
 ## Example
 ![](readme_images/example_wallpaper.png)
+![](readme_images/example_wallpaper2.png)
