@@ -14,7 +14,7 @@ An internet connection is required.
 
 There is a short initial setup:
 
-1. Get your api keys and add them to config.ini (below)
+1. Set your redirect URI and get your api keys and add them to config.ini (read below)
 2. Open ```album-art-wallpaper.exe```, ignore the error message a spotify webpage will pop up where you can authorise your Spotify account
 3. ```Open album-art-wallpaper.exe``` again, you should be good to go.
 
