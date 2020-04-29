@@ -136,7 +136,7 @@ if config["API Keys"]["CLIENT_SECRET"] == "<Your Client ID>" or config["API Keys
     subprocess.call(["notepad.exe","config.ini"])
     quit()
 
-subprocess.run(["python","spotify_auth.py"])
+subprocess.run(["python","spotify-auth.py"],shell=True)
 
 with open(".cache","r") as f:
     data = json.load(f)

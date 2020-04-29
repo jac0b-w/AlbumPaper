@@ -33,7 +33,7 @@ def _callback():
 
 
     shutdown_server()
-    return "Account successfully authorized. Close this window"
+    return "Account successfully authorized. Open album-art-wallpaper.exe again and close this window"
 
     
 sp_oauth = spotipy.SpotifyOAuth(
