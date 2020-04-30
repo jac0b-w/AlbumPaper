@@ -10,7 +10,7 @@ An internet connection is required.
 
 [Download exe](https://github.com/jac0b-w/album-art-wallpaper/releases/latest)
 
-[Download source (zip)](https://github.com/jac0b-w/album-art-wallpaper/archive/master.zip)
+[Download source](https://github.com/jac0b-w/album-art-wallpaper/archive/master.zip)
 
 There is a short initial setup:
 
@@ -34,7 +34,7 @@ Once you are on the app page go to EDIT SETTINGS > Redirect URIs, enter ``` http
 
 <img src = readme_images/image2.png width=300>
 
-Copy and paste the Client ID and Client Secret into the config.ini file.
+Copy and paste the Client ID and Client Secret into the config.ini file. You can easily find this by clicking on settings in the context menu.
 
 <img src = readme_images/image3.png width=700>
 
