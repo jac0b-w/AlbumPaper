@@ -33,7 +33,7 @@ def _callback():
 
 
     shutdown_server()
-    return "Account successfully authorized. Open album-art-wallpaper.exe again and close this window"
+    return "Account successfully authorized. You can close this window."
 
     
 sp_oauth = spotipy.SpotifyOAuth(
@@ -52,5 +52,3 @@ if cached_token:
 else:
     webbrowser.open("http://localhost:5000/")
     app.run(debug=True)
-
-quit()

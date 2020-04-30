@@ -129,26 +129,14 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         sys.exit()
 
 
-config = configparser.ConfigParser()
-config.read('config.ini')
-
-if config["API Keys"]["CLIENT_SECRET"] == "<Your Client ID>" or config["API Keys"]["CLIENT_SECRET"] == "<Your Client Secret>":
-    subprocess.call(["notepad.exe","config.ini"])
-    quit()
-
-subprocess.run(["python","spotify-auth.py"],shell=True)
-
-with open(".cache","r") as f:
-    data = json.load(f)
-    token = data["access_token"]
-
 if not os.path.exists('images'):
     os.makedirs('images')
-
 if not os.path.exists("images/default_wallpaper.jpg"):
     set_default_wallpaper()
 
-sp = spotipy.Spotify(auth=token)
+config = configparser.ConfigParser()
+config.read('config.ini')
+
 
 app = QtWidgets.QApplication(sys.argv)
 
@@ -156,8 +144,28 @@ w = QtWidgets.QWidget()
 tray_icon = SystemTrayIcon(QtGui.QIcon("icon.ico"), w)
 tray_icon.show()
 
-thread = Worker()
-thread.finished.connect(app.exit)
-thread.start()
 
-sys.exit(app.exec_())
+while len(config["API Keys"]["CLIENT_SECRET"]) != 32 or len(config["API Keys"]["CLIENT_SECRET"]) != 32:
+    tray_icon.showMessage('Invalid API Kays','Set valid API Keys')
+    subprocess.call(["notepad.exe","config.ini"])
+    time.sleep(10)
+    config.read('config.ini')
+
+subprocess.run(["python","spotify-auth.py"],shell=True)
+
+if os.path.exists('.cache'):
+    with open(".cache","r") as f:
+        data = json.load(f)
+        token = data["access_token"]
+
+    sp = spotipy.Spotify(auth=token)
+
+    thread = Worker()
+    thread.finished.connect(app.exit)
+    thread.start()
+
+    sys.exit(app.exec_())
+
+else:
+    tray_icon.showMessage('Authorisation Error','Please make sure you have logged in, and have valid API Keys')
+    subprocess.run(["python","spotify-auth.py"],shell=True)
