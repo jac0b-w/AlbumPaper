@@ -18,12 +18,11 @@ There is a short initial setup:
 2. Open ```album-art-wallpaper.exe```, ignore the error message a spotify webpage will pop up where you can authorise your Spotify account
 3. ```Open album-art-wallpaper.exe``` again, you should be good to go.
 
-- If you want it to run at startup create a shortcut of ```album-art-wallpaper.exe``` and copy it into ```%appdata%\Microsoft\Windows\Start Menu\Programs\Startup```
-
 If you are running the source you will also need to:
 
 - Install the dependencies ```pip install -r requirements.txt```
 - Rename ```config_sample.ini``` to ```config.ini```
+- If you want it to run at startup create a shortcut of ```album-art-wallpaper.exe``` and copy it into ```%appdata%\Microsoft\Windows\Start Menu\Programs\Startup```
 
 ### Getting your API Keys
 Head over to the [Spotify developer dashboard](https://www.google.com) and create a non-commercial app, call it whatever you like, select any use case and give it a description.
