@@ -14,6 +14,7 @@ def current_track(sp):
     except (TypeError, IndexError):
         return {"art_available":False}
 
+
 def lastfm_request(payload):
     # define headers and URL
     headers = {'user-agent': "album-art-wallpaper"}
@@ -31,7 +32,11 @@ def lastfm_current_track():
         "method":"user.getRecentTracks",
         "limit":1,
         "user":config["Last.fm"]["username"]
-    }).json()["recenttracks"]["track"][0]
+    }).json()
+    try:
+        current = current["recenttracks"]["track"][0]
+    except KeyError:
+        return None
     try:
         return {
             "art_available":str_bool(current["@attr"]["nowplaying"]),
@@ -83,10 +88,13 @@ class Worker(QtCore.QThread):
         previous_wallpaper = None
         request_interval = int(config["Settings"]["request_interval"])
         while True:
+            time.sleep(request_interval)
             if using_spotify:
                 current = current_track(sp)
             else:
                 current = lastfm_current_track()
+                if current == None:
+                    continue
             if current["art_available"]:
                 if current["id"] != previous_wallpaper:
                     download_image(current["image"])
@@ -98,7 +106,7 @@ class Worker(QtCore.QThread):
                 set_wallpaper("images/default_wallpaper.jpg")
                 previous_wallpaper = None
 
-            time.sleep(request_interval)
+            
 
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, icon, parent=None):
@@ -118,7 +126,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         bug_report_item = menu.addAction("Bug Report")
         bug_report_item.triggered.connect(self.bug_report)
 
-        release_item = menu.addAction("v1.1")
+        release_item = menu.addAction("v1.1.1")
         release_item.triggered.connect(self.open_releases)
 
         exit_ = menu.addAction("Quit")
