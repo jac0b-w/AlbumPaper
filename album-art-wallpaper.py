@@ -1,14 +1,7 @@
-import os, sys, time, json, glob, shutil, webbrowser, subprocess, ctypes, spotipy, urllib.request, configparser
+import os, sys, time, json, glob, shutil, webbrowser, subprocess, ctypes, spotipy, urllib.request, configparser, requests
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageDraw
 from colorthief import ColorThief
-
-def str_bool(string):
-    string = string.lower()
-    if string == "false" or string == "0":
-        return False
-    elif string == "true" or string == "1":
-        return True
 
 def current_track(sp):
     current = sp.currently_playing()
@@ -21,6 +14,39 @@ def current_track(sp):
     except (TypeError, IndexError):
         return {"art_available":False}
 
+def lastfm_request(payload):
+    # define headers and URL
+    headers = {'user-agent': "album-art-wallpaper"}
+    url = 'http://ws.audioscrobbler.com/2.0/'
+
+    # Add API key and format to the payload
+    payload['api_key'] = config["Last.fm"]["api_key"]
+    payload['format'] = 'json'
+
+    response = requests.get(url, headers=headers, params=payload)
+    return response
+
+def lastfm_current_track():
+    current = lastfm_request({
+        "method":"user.getRecentTracks",
+        "limit":1,
+        "user":config["Last.fm"]["username"]
+    }).json()["recenttracks"]["track"][0]
+    try:
+        return {
+            "art_available":str_bool(current["@attr"]["nowplaying"]),
+            "image": current["image"][0]["#text"].replace("/34s",""),
+            "id":current['mbid']
+        }
+    except KeyError:
+        return {"art_available":False}
+
+def str_bool(string):
+    string = string.lower()
+    if string == "false" or string == "0":
+        return False
+    elif string == "true" or string == "1":
+        return True
 
 def dominant_colour(file_name):
     color_thief = ColorThief(file_name)
@@ -28,18 +54,18 @@ def dominant_colour(file_name):
     return color_thief.get_color(quality=50)
 
 def download_image(url):
-    urllib.request.urlretrieve(url, "images/spotify-album-art.jpg")
+    urllib.request.urlretrieve(url, "images/album-art.jpg")
 
 def set_wallpaper(file_name):
     abs_path = os.path.abspath(file_name)
     ctypes.windll.user32.SystemParametersInfoW(20, 0, abs_path , 0)
 
-def generate_wallpaper(file_name,resize):
+def generate_wallpaper(file_name): #if resize = true, then px controls the resize dimentions
+    art_size = int(config["Settings"]["art_size"])
     x,y = (ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1))
     background = Image.new('RGB', (x,y), dominant_colour(file_name))
     art = Image.open(file_name)
-    if resize:
-        art = art.resize((min(x,y),min(x,y)),0)
+    art = art.resize((art_size,art_size),1)
     background.paste(art,(int((x-art.size[0])/2),int((y-art.size[1])/2)))
     background.save("images/generated_wallpaper.png")
 
@@ -49,6 +75,7 @@ def set_default_wallpaper():
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy(latest_file, "images/default_wallpaper.jpg")
 
+
 class Worker(QtCore.QThread):
     # Worker thread
     @QtCore.Slot()
@@ -56,12 +83,14 @@ class Worker(QtCore.QThread):
         previous_wallpaper = None
         request_interval = int(config["Settings"]["request_interval"])
         while True:
-            current = current_track(sp)
+            if using_spotify:
+                current = current_track(sp)
+            else:
+                current = lastfm_current_track()
             if current["art_available"]:
-
                 if current["id"] != previous_wallpaper:
                     download_image(current["image"])
-                    generate_wallpaper("images/spotify-album-art.jpg",str_bool(config["Settings"]["resize_art"]))
+                    generate_wallpaper("images/album-art.jpg")
                     set_wallpaper("images/generated_wallpaper.png")
                     previous_wallpaper = current["id"]
 
@@ -89,7 +118,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         bug_report_item = menu.addAction("Bug Report")
         bug_report_item.triggered.connect(self.bug_report)
 
-        release_item = menu.addAction("v1.0")
+        release_item = menu.addAction("v1.2")
         release_item.triggered.connect(self.open_releases)
 
         exit_ = menu.addAction("Quit")
@@ -97,13 +126,13 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
         menu.addSeparator()
         self.setContextMenu(menu)
-        # self.activated.connect(self.onTrayIconActivated)
+    #     self.activated.connect(self.onTrayIconActivated)
 
 
     # def onTrayIconActivated(self, reason):
     #     # Action on double click
     #     if reason == self.DoubleClick:
-    #         print("double click")
+    #         pass
     #     if reason == self.Trigger:
     #         print("single click")
 
@@ -128,15 +157,13 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         set_wallpaper("images/default_wallpaper.jpg")
         sys.exit()
 
+config = configparser.ConfigParser()
+config.read('config.ini')
 
 if not os.path.exists('images'):
     os.makedirs('images')
 if not os.path.exists("images/default_wallpaper.jpg"):
     set_default_wallpaper()
-
-config = configparser.ConfigParser()
-config.read('config.ini')
-
 
 app = QtWidgets.QApplication(sys.argv)
 
@@ -145,27 +172,50 @@ tray_icon = SystemTrayIcon(QtGui.QIcon("icon.ico"), w)
 tray_icon.show()
 
 
-while len(config["API Keys"]["CLIENT_SECRET"]) != 32 or len(config["API Keys"]["CLIENT_SECRET"]) != 32:
-    tray_icon.showMessage('Invalid API Kays','Set valid API Keys')
-    subprocess.call(["notepad.exe","config.ini"])
-    time.sleep(10)
-    config.read('config.ini')
 
-subprocess.run(["python","spotify-auth.py"],shell=True)
-
-if os.path.exists('.cache'):
-    with open(".cache","r") as f:
-        data = json.load(f)
-        token = data["access_token"]
-
-    sp = spotipy.Spotify(auth=token)
-
-    thread = Worker()
-    thread.finished.connect(app.exit)
-    thread.start()
-
-    sys.exit(app.exec_())
-
+if config["Service"]["service"].lower() == "spotify":
+    using_spotify = True
+elif config["Service"]["service"].lower().replace(".","") == "lastfm":
+    using_spotify = False
 else:
-    tray_icon.showMessage('Authorisation Error','Please make sure you have logged in, and have valid API Keys')
+    tray_icon.showMessage('No sevice set','Set the service in settings to spotify or last.fm')
+    subprocess.run(["notepad.exe","config.ini"])
+    sys.exit()
+
+
+
+if using_spotify:
+    if len(config["Spotify API Keys"]["CLIENT_SECRET"]) != 32 or len(config["Spotify API Keys"]["CLIENT_ID"]) != 32:
+        tray_icon.showMessage('Invalid API Keys','Set valid Spotify API Keys')
+        subprocess.run(["notepad.exe","config.ini"])
+        config.read('config.ini')
+        sys.exit()
+
+
     subprocess.run(["python","spotify-auth.py"],shell=True)
+
+    if os.path.exists('.cache'):
+        with open(".cache","r") as f:
+            data = json.load(f)
+            token = data["access_token"]
+
+        sp = spotipy.Spotify(auth=token)
+
+    else:
+        tray_icon.showMessage('Authorisation Error','Please make sure you have logged in, and have valid API Keys')
+        sys.exit()
+
+
+else: #using last.fm
+    while len(config["Last.fm"]["api_key"]) != 32:
+        tray_icon.showMessage('Invalid API Key','Set a valid Last.fm API key')
+        subprocess.run(["notepad.exe","config.ini"])
+        config.read('config.ini')
+        sys.exit()
+
+
+thread = Worker()
+thread.finished.connect(app.exit)
+thread.start()
+
+sys.exit(app.exec_())

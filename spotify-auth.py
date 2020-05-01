@@ -6,8 +6,8 @@ config.read('config.ini')
 
 app = Flask(__name__)
 
-os.environ["CLIENT_ID"] = config["API Keys"]["CLIENT_ID"]
-os.environ["CLIENT_SECRET"] = config["API Keys"]["CLIENT_SECRET"]
+os.environ["CLIENT_ID"] = config["Spotify API Keys"]["CLIENT_ID"]
+os.environ["CLIENT_SECRET"] = config["Spotify API Keys"]["CLIENT_SECRET"]
 
 
 CLI_ID = os.getenv('CLIENT_ID')
@@ -29,8 +29,6 @@ def _home():
 def _callback():
     code = request.args.get('code')
     token = sp_oauth.get_access_token(code, as_dict=False)
-    print(token)
-
 
     shutdown_server()
     return "Account successfully authorized. You can close this window."
