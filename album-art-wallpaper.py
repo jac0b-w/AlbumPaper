@@ -118,7 +118,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         bug_report_item = menu.addAction("Bug Report")
         bug_report_item.triggered.connect(self.bug_report)
 
-        release_item = menu.addAction("v1.2")
+        release_item = menu.addAction("v1.1")
         release_item.triggered.connect(self.open_releases)
 
         exit_ = menu.addAction("Quit")
