@@ -14,9 +14,10 @@ An internet connection is required.
 
 There is a short initial setup:
 
-1. Set your redirect URI and get your api keys and add them to config.ini (read below)
-2. Open ```album-art-wallpaper.exe```, a spotify webpage will pop up where you can authorise your Spotify account
-3. Start playing music and your desktop wallpaper will change
+1. Set service in config.ini to either spotify or last.fm
+2. Add the API keys for the service you are using (read below)
+3. Open ```album-art-wallpaper.exe```, if you are using spotify a webpage will pop up where you can authorise your Spotify account
+4. Start playing music and your desktop wallpaper will change, you can right click the app in the system tray for options.
 
 If you are running the source you will also need to:
 
@@ -25,11 +26,12 @@ If you are running the source you will also need to:
 - If you want it to run at startup create a shortcut of ```album-art-wallpaper.exe``` and copy it into ```%appdata%\Microsoft\Windows\Start Menu\Programs\Startup```
 
 ### Getting your API Keys
-Head over to the [Spotify developer dashboard](https://www.google.com) and create a non-commercial app, call it whatever you like, select any use case and give it a description.
+#### Spotify
+Head over to the [Spotify developer dashboard](https://developer.spotify.com/dashboard/login) and create a non-commercial app, call it whatever you like, select any use case and give it a description.
 
 <img src = readme_images/image1.png width=300>
 
-Once you are on the app page go to EDIT SETTINGS > Redirect URIs, enter ``` http://localhost:5000/callback/ ``` exactly and make sure to save it.
+Once you are on the app page go to EDIT SETTINGS > Redirect URIs, enter ``` http://localhost:5000/callback/ ``` __exactly__ and make sure to save it.
 
 <img src = readme_images/image2.png width=300>
 
@@ -37,13 +39,22 @@ Copy and paste the Client ID and Client Secret into the config.ini file. You can
 
 <img src = readme_images/image3.png width=700>
 
+#### Last.fm
+
+Create a new API account [here](https://www.last.fm/api/account/create) enter an email and an application name a callback URI is __not__ required.
+
+Add the API Key to config.ini you do __not__ need the shared secret.
+
+Add your last.fm username to config.ini
 
 ### Settings
 There are two settings in the config.ini file:
 
-- ```request_interval``` controls how often a request is sent to the Spotify Web API.
-- ```resize_art``` when true will resize the 640px album art to fit on the smallest axis.
+- ```request_interval``` controls how often a request is sent to the API.
+- ```art_size``` the size of the album artwork (px).
 
-## Example
-![](readme_images/example_wallpaper.png)
-![](readme_images/example_wallpaper2.png)
+## Examples
+<img src = readme_images/example_wallpaper.png width=400> <img src = readme_images/example_wallpaper2.png width=400>
+
+
+<img src = readme_images/example_wallpaper3.png width=400> <img src = readme_images/example_wallpaper4.png width=400>
