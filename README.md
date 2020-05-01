@@ -54,7 +54,4 @@ There are two settings in the config.ini file:
 - ```art_size``` the size of the album artwork (px).
 
 ## Examples
-<img src = readme_images/example_wallpaper.png width=400> <img src = readme_images/example_wallpaper2.png width=400>
-
-
-<img src = readme_images/example_wallpaper3.png width=400> <img src = readme_images/example_wallpaper4.png width=400>
+<img src = readme_images/example.jpg>
