@@ -3,15 +3,15 @@ from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageDraw
 from colorthief import ColorThief
 
-def current_track(sp):
-    current = sp.currently_playing()
+def spotify_current_track(sp):
     try:
+        current = sp.currently_playing()
         return {
             "art_available":current["is_playing"],
             "image":current["item"]["album"]["images"][0]["url"],
             "id":current["item"]["id"]
         }
-    except (TypeError, IndexError):
+    except:
         return {"art_available":False}
 
 
@@ -28,22 +28,24 @@ def lastfm_request(payload):
     return response
 
 def lastfm_current_track():
-    current = lastfm_request({
-        "method":"user.getRecentTracks",
-        "limit":1,
-        "user":config["Last.fm"]["username"]
-    }).json()
     try:
-        current = current["recenttracks"]["track"][0]
-    except KeyError:
+        current = lastfm_request({
+            "method":"user.getRecentTracks",
+            "limit":1,
+            "user":config["Last.fm"]["username"]
+        }).json()["recenttracks"]["track"][0]
+    except KeyError: # Occurs when last.fm api fails
         return None
+    except:
+        # occurs with poor/no connection
+        return {"art_available":False}
     try:
         return {
             "art_available":str_bool(current["@attr"]["nowplaying"]),
             "image": current["image"][0]["#text"].replace("/34s",""),
             "id":current['mbid']
         }
-    except KeyError:
+    except: # occurs when there is no art avaliable
         return {"art_available":False}
 
 def str_bool(string):
@@ -90,7 +92,7 @@ class Worker(QtCore.QThread):
         while True:
             time.sleep(request_interval)
             if using_spotify:
-                current = current_track(sp)
+                current = spotify_current_track(sp)
             else:
                 current = lastfm_current_track()
                 if current == None:
@@ -126,7 +128,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         bug_report_item = menu.addAction("Bug Report")
         bug_report_item.triggered.connect(self.bug_report)
 
-        release_item = menu.addAction("v1.1.1")
+        release_item = menu.addAction("v1.1.2")
         release_item.triggered.connect(self.open_releases)
 
         exit_ = menu.addAction("Quit")
@@ -150,7 +152,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
 
     def settings(self):
-        os.system("notepad.exe config.ini")
+        subprocess.Popen(["notepad.exe","config.ini"]) # subprocess.Popen is non-blocking
 
     def open_readme(self):
         webbrowser.open("https://github.com/jac0b-w/album-art-wallpaper/blob/master/README.md")
@@ -199,8 +201,10 @@ if using_spotify:
         config.read('config.ini')
         sys.exit()
 
-
-    subprocess.run(["python","spotify-auth.py"],shell=True)
+    if os.path.exists('spotify-auth.py'):
+        subprocess.run(["python","spotify-auth.py"],shell=True)
+    elif os.path.exists('spotify-auth.exe'):
+        subprocess.run(["start","spotify-auth.exe"],shell=True)
 
     if os.path.exists('.cache'):
         with open(".cache","r") as f:
