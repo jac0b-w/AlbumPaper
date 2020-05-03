@@ -3,9 +3,25 @@ from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageDraw
 from colorthief import ColorThief
 
+def spotify_auth(shell=False):
+    if os.path.exists('spotify-auth.py'):
+        subprocess.run(["python","spotify-auth.py"],shell=shell)
+    elif os.path.exists('spotify-auth.exe'):
+        subprocess.run(["start","spotify-auth.exe"],shell=shell)
+
+    if os.path.exists('.cache'):
+        with open(".cache","r") as f:
+            data = json.load(f)
+            token = data["access_token"]
+
+    return spotipy.Spotify(auth=token)
+
 def spotify_current_track(sp):
     try:
         current = sp.currently_playing()
+        print(current)
+        if current == None:
+            return None
         return {
             "art_available":current["is_playing"],
             "image":current["item"]["album"]["images"][0]["url"],
@@ -87,12 +103,17 @@ class Worker(QtCore.QThread):
     # Worker thread
     @QtCore.Slot()
     def run(self):
+        if using_spotify:
+            sp = spotify_auth(True)
         previous_wallpaper = None
         request_interval = int(config["Settings"]["request_interval"])
         while True:
             time.sleep(request_interval)
             if using_spotify:
                 current = spotify_current_track(sp)
+                if current == None:
+                    sp = spotify_auth()
+                    continue
             else:
                 current = lastfm_current_track()
                 if current == None:
@@ -201,19 +222,7 @@ if using_spotify:
         config.read('config.ini')
         sys.exit()
 
-    if os.path.exists('spotify-auth.py'):
-        subprocess.run(["python","spotify-auth.py"],shell=True)
-    elif os.path.exists('spotify-auth.exe'):
-        subprocess.run(["start","spotify-auth.exe"],shell=True)
-
-    if os.path.exists('.cache'):
-        with open(".cache","r") as f:
-            data = json.load(f)
-            token = data["access_token"]
-
-        sp = spotipy.Spotify(auth=token)
-
-    else:
+    if not os.path.exists('.cache'):
         tray_icon.showMessage('Authorisation Error','Please make sure you have logged in, and have valid API Keys')
         sys.exit()
 
