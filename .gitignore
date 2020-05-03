@@ -6,3 +6,4 @@ config.ini
 .cache
 /exe
 config.ini
+test*
