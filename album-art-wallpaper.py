@@ -4,8 +4,8 @@ from PIL import Image
 from colorthief import ColorThief
 
 
-config = configparser.ConfigParser()
-config.read('config.ini')
+class TokenExpiredError(Exception):
+    pass
 
 def spotify_auth():
     CLI_ID = config["Spotify API Keys"]["CLIENT_ID"]
@@ -52,13 +52,15 @@ def spotify_auth():
 def spotify_current_track(sp):
     try:
         current = sp.currently_playing()
-        if current == None:
-            return None
         return {
             "art_available":current["is_playing"],
             "image":current["item"]["album"]["images"][0]["url"],
             "id":current["item"]["id"]
         }
+    except spotipy.client.SpotifyException:
+        raise TokenExpiredError
+    except KeyError:
+        return {"art_available":False}
     except:
         return {"art_available":False}
 
@@ -149,8 +151,9 @@ class Worker(QtCore.QThread):
         while True:
             time.sleep(request_interval)
             if using_spotify:
-                current = spotify_current_track(sp)
-                if current is None:
+                try:
+                    current = spotify_current_track(sp)
+                except TokenExpiredError:
                     sp = spotify_auth()
                     continue
             else:
@@ -225,6 +228,9 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         set_wallpaper("images/default_wallpaper.jpg")
         sys.exit()
 
+
+config = configparser.ConfigParser()
+config.read('config.ini')
 
 if not os.path.exists('images'):
     os.makedirs('images')
