@@ -4,12 +4,13 @@ from PIL import Image
 from colorthief import ColorThief
 
 
-def spotify_auth():
-    os.environ["CLIENT_ID"] = config["Spotify API Keys"]["CLIENT_ID"]
-    os.environ["CLIENT_SECRET"] = config["Spotify API Keys"]["CLIENT_SECRET"]
+config = configparser.ConfigParser()
+config.read('config.ini')
 
-    CLI_ID = os.getenv('CLIENT_ID')
-    CLI_SEC = os.getenv('CLIENT_SECRET')
+def spotify_auth():
+    CLI_ID = config["Spotify API Keys"]["CLIENT_ID"]
+    CLI_SEC = config["Spotify API Keys"]["CLIENT_SECRET"]
+
     REDIRECT_URI = "http://localhost:5000/callback/"
     SCOPE = "user-read-currently-playing"
 
@@ -25,12 +26,17 @@ def spotify_auth():
     cached_token = sp_oauth.get_cached_token()
 
     if not cached_token:
+        tray_icon.showMessage('Sign In','Please sign in')
         webbrowser.open("http://localhost:5000/")
         if os.path.exists('spotify-auth.py'):
-            subprocess.run(["python", "spotify-auth.py"], shell=True)
+            subprocess.run(["python", "spotify-auth.py"], shell=True, timeout=300)  # 5 minute timeout
         elif os.path.exists('spotify-auth.exe'):
-            subprocess.run(["start", "spotify-auth.exe"], shell=True)
+            subprocess.run(["spotify-auth.exe"], shell=True, timeout=300)  # 5 minute timeout
+        else:
+            tray_icon.showMessage('Missing program','No spotify-auth program')
+            sys.exit()
     
+
     if os.path.exists(".cache"):
         with open(".cache", "r") as f:
             data = json.load(f)
@@ -39,7 +45,7 @@ def spotify_auth():
         return spotipy.Spotify(auth=token)
 
     else:
-        tray_icon.showMessage('Authorisation Error','Please make sure you have logged in, and have valid API Keys')
+        tray_icon.showMessage('Authorisation Error','Failed to sign in')
         sys.exit()
 
 
@@ -102,7 +108,6 @@ def str_bool(string):
 
 def dominant_colour(file_name):
     color_thief = ColorThief(file_name)
-    # get the dominant color
     return color_thief.get_color(quality=50)
 
 
@@ -211,21 +216,14 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         webbrowser.open("https://github.com/jac0b-w/album-art-wallpaper/blob/master/README.md")
 
     def bug_report(self):
-        webbrowser.open("https://github.com/jac0b-w/album-art-wallpaper/issues/new")
+        webbrowser.open("https://github.com/jac0b-w/album-art-wallpaper/issues")
 
     def open_releases(self):
-        webbrowser.open("https://github.com/jac0b-w/album-art-wallpaper/releases/latest")
+        webbrowser.open("https://github.com/jac0b-w/album-art-wallpaper/releases")
 
     def exit(self):
         set_wallpaper("images/default_wallpaper.jpg")
         sys.exit()
-
-config = configparser.ConfigParser()
-config.read('config.ini')
-
-
-
-
 
 
 if not os.path.exists('images'):

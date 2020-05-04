@@ -1,23 +1,25 @@
-import webbrowser, spotipy, os, configparser
+import webbrowser, spotipy, configparser
 from flask import Flask, request, redirect
 
 
+config = configparser.ConfigParser()
+config.read('config.ini')
+
 app = Flask(__name__)
 
-CLI_ID = os.getenv('CLIENT_ID')
-CLI_SEC = os.getenv('CLIENT_SECRET')
+CLI_ID = config["Spotify API Keys"]["CLIENT_ID"]
+CLI_SEC = config["Spotify API Keys"]["CLIENT_SECRET"]
 REDIRECT_URI = "http://localhost:5000/callback/"
 SCOPE = "user-read-currently-playing"
 SHOW_DIALOG = False
-
 
 def shutdown_server():
     func = request.environ.get('werkzeug.server.shutdown')
     func()
 
 @app.route("/")
-def _home():
-    return redirect(f'https://accounts.spotify.com/authorize?client_id={CLI_ID}&response_type=code&redirect_uri={REDIRECT_URI}&scope={SCOPE}&show_dialog={SHOW_DIALOG}')
+def home():
+    return redirect(f"https://accounts.spotify.com/authorize?client_id={CLI_ID}&response_type=code&redirect_uri={REDIRECT_URI}&scope={SCOPE}&show_dialog={SHOW_DIALOG}")
 
 @app.route("/callback/")
 def _callback():
