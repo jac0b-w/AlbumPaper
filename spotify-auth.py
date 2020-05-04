@@ -1,13 +1,13 @@
 import webbrowser, spotipy, os, configparser
 from flask import Flask, request, redirect
 
-config = configparser.ConfigParser()
-config.read('config.ini')
+# config = configparser.ConfigParser()
+# config.read('config.ini')
 
 app = Flask(__name__)
 
-os.environ["CLIENT_ID"] = config["Spotify API Keys"]["CLIENT_ID"]
-os.environ["CLIENT_SECRET"] = config["Spotify API Keys"]["CLIENT_SECRET"]
+# os.environ["CLIENT_ID"] = config["Spotify API Keys"]["CLIENT_ID"]
+# os.environ["CLIENT_SECRET"] = config["Spotify API Keys"]["CLIENT_SECRET"]
 
 
 CLI_ID = os.getenv('CLIENT_ID')
@@ -33,20 +33,14 @@ def _callback():
     shutdown_server()
     return "Account successfully authorized. You can close this window."
 
-    
+
 sp_oauth = spotipy.SpotifyOAuth(
-    CLI_ID,
-    CLI_SEC,
-    redirect_uri = REDIRECT_URI,
-    scope=SCOPE,
-    cache_path=".cache",
-    show_dialog=SHOW_DIALOG
-)
+        CLI_ID,
+        CLI_SEC,
+        redirect_uri = REDIRECT_URI,
+        scope=SCOPE,
+        cache_path=".cache",
+        show_dialog=False
+    )
 
-cached_token = sp_oauth.get_cached_token()
-
-if cached_token:
-    token = cached_token["access_token"]
-else:
-    webbrowser.open("http://localhost:5000/")
-    app.run(debug=True)
+app.run(debug=False)
