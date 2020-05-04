@@ -4,6 +4,8 @@ config.ini
 /__pycache__
 /images
 .cache
-/exe
 config.ini
 test*
+/dist
+/build
+.spec
