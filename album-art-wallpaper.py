@@ -24,8 +24,6 @@ def spotify_auth():
 
     cached_token = sp_oauth.get_cached_token()
 
-    print(cached_token)
-
     if not cached_token:
         webbrowser.open("http://localhost:5000/")
         if os.path.exists('spotify-auth.py'):

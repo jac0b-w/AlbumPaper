@@ -1,14 +1,8 @@
 import webbrowser, spotipy, os, configparser
 from flask import Flask, request, redirect
 
-# config = configparser.ConfigParser()
-# config.read('config.ini')
 
 app = Flask(__name__)
-
-# os.environ["CLIENT_ID"] = config["Spotify API Keys"]["CLIENT_ID"]
-# os.environ["CLIENT_SECRET"] = config["Spotify API Keys"]["CLIENT_SECRET"]
-
 
 CLI_ID = os.getenv('CLIENT_ID')
 CLI_SEC = os.getenv('CLIENT_SECRET')
