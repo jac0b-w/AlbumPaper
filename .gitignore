@@ -8,4 +8,4 @@ config.ini
 test*
 /dist
 /build
-.spec
+*.spec
