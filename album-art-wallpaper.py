@@ -1,6 +1,6 @@
 import os, sys, time, json, glob, shutil, webbrowser, subprocess, ctypes, spotipy, urllib.request, configparser, requests
 from PySide2 import QtWidgets, QtGui, QtCore
-from PIL import Image
+from PIL import Image, ImageChops
 from colorthief import ColorThief
 
 
@@ -36,7 +36,6 @@ def spotify_auth():
             tray_icon.showMessage('Missing program','No spotify-auth program')
             sys.exit()
     
-
     if os.path.exists(".cache"):
         with open(".cache", "r") as f:
             data = json.load(f)
@@ -55,27 +54,27 @@ def spotify_current_track(sp):
         return {
             "art_available":current["is_playing"],
             "image":current["item"]["album"]["images"][0]["url"],
-            "id":current["item"]["id"]
         }
     except spotipy.client.SpotifyException:
         raise TokenExpiredError
-    except KeyError:
-        return {"art_available":False}
     except:
         return {"art_available":False}
 
 
 def lastfm_request(payload):
-    # define headers and URL
-    headers = {'user-agent': "album-art-wallpaper"}
-    url = 'http://ws.audioscrobbler.com/2.0/'
+    try:
+        # define headers and URL
+        headers = {'user-agent': "album-art-wallpaper"}
+        url = 'http://ws.audioscrobbler.com/2.0/'
 
-    # Add API key and format to the payload
-    payload['api_key'] = config["Last.fm"]["api_key"]
-    payload['format'] = 'json'
+        # Add API key and format to the payload
+        payload['api_key'] = config["Last.fm"]["api_key"]
+        payload['format'] = 'json'
 
-    response = requests.get(url, headers=headers, params=payload)
-    return response
+        response = requests.get(url, headers=headers, params=payload)
+        return response
+    except:
+        return None
 
 
 def lastfm_current_track():
@@ -93,10 +92,9 @@ def lastfm_current_track():
     try:
         return {
             "art_available":str_bool(current["@attr"]["nowplaying"]),
-            "image": current["image"][0]["#text"].replace("/34s",""),
-            "id":current['mbid']
+            "image": current["image"][0]["#text"].replace("34s","600x600"),
         }
-    except: # occurs when there is no art avaliable
+    except: # occurs when the user isn't playing a track
         return {"art_available":False}
 
 
@@ -111,7 +109,7 @@ def str_bool(string):
 def dominant_colour(file_name):
     color_thief = ColorThief(file_name)
     return color_thief.get_color(quality=50)
-
+    
 
 def download_image(url):
     urllib.request.urlretrieve(url, "images/album-art.jpg")
@@ -121,16 +119,23 @@ def set_wallpaper(file_name):
     abs_path = os.path.abspath(file_name)
     ctypes.windll.user32.SystemParametersInfoW(20, 0, abs_path , 0)
 
+
 def generate_wallpaper(file_name): #if resize = true, then px controls the resize dimentions
+    time_start = time.time()
     art_size = int(config["Settings"]["art_size"])
     x,y = (ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1))
     background = Image.new('RGB', (x,y), dominant_colour(file_name))
-    art = Image.open(file_name)
-    art = art.resize((art_size,art_size),1)
-    background.paste(art,(int((x-art.size[0])/2),int((y-art.size[1])/2)))
-    background.save("images/generated_wallpaper.png")
+    art = Image.open(file_name).convert('RGB')
 
+    if ImageChops.difference(art, Image.open("missing_art.jpg").convert('RGB')).getbbox() is not None: # images are different
+        art = art.resize((art_size,art_size),1)
+        background.paste(art,(int((x-art.size[0])/2),int((y-art.size[1])/2)))
+        background.save("images/generated_wallpaper.png")
+        return "images/generated_wallpaper.png"
+    else:
+        return "images/default_wallpaper.jpg"
 
+    
 def set_default_wallpaper():
     cached_folder = os.path.expandvars(r'%APPDATA%\Microsoft\Windows\Themes\CachedFiles\*')
     list_of_files = glob.glob(cached_folder)
@@ -161,12 +166,11 @@ class Worker(QtCore.QThread):
                 if current is None:
                     continue
             if current["art_available"]:
-                if current["id"] != previous_wallpaper:
+                if current["image"] != previous_wallpaper:
                     download_image(current["image"])
-                    generate_wallpaper("images/album-art.jpg")
-                    set_wallpaper("images/generated_wallpaper.png")
-                    previous_wallpaper = current["id"]
-
+                    generated_file = generate_wallpaper("images/album-art.jpg")
+                    set_wallpaper(generated_file)
+                    previous_wallpaper = current["image"]
             elif previous_wallpaper is not None:
                 set_wallpaper("images/default_wallpaper.jpg")
                 previous_wallpaper = None
@@ -191,7 +195,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         bug_report_item = menu.addAction("Bug Report")
         bug_report_item.triggered.connect(self.bug_report)
 
-        release_item = menu.addAction("v1.1.3")
+        release_item = menu.addAction("v1.2")
         release_item.triggered.connect(self.open_releases)
 
         exit_ = menu.addAction("Quit")
@@ -243,8 +247,6 @@ w = QtWidgets.QWidget()
 tray_icon = SystemTrayIcon(QtGui.QIcon("icon.ico"), w)
 tray_icon.show()
 
-
-
 if config["Service"]["service"].lower() == "spotify":
     using_spotify = True
 elif config["Service"]["service"].lower().replace(".","") == "lastfm":
@@ -254,21 +256,18 @@ else:
     subprocess.run(["notepad.exe","config.ini"])
     sys.exit()
 
-
-
 if using_spotify:
-    if len(config["Spotify API Keys"]["CLIENT_SECRET"]) != 32 or len(config["Spotify API Keys"]["CLIENT_ID"]) != 32:
+    if len(config["Spotify API Keys"]["CLIENT_SECRET"]) != 32 or \
+        len(config["Spotify API Keys"]["CLIENT_ID"]) != 32:
         tray_icon.showMessage('Invalid API Keys','Set valid Spotify API Keys')
         subprocess.run(["notepad.exe","config.ini"])
         sys.exit()
 
-
 else:  # using last.fm
-    while len(config["Last.fm"]["api_key"]) != 32:
+    if len(config["Last.fm"]["api_key"]) != 32:
         tray_icon.showMessage('Invalid API Key','Set a valid Last.fm API key')
         subprocess.run(["notepad.exe","config.ini"])
         sys.exit()
-
 
 thread = Worker()
 thread.finished.connect(app.exit)
