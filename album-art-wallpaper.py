@@ -121,7 +121,6 @@ def set_wallpaper(file_name):
 
 
 def generate_wallpaper(file_name): #if resize = true, then px controls the resize dimentions
-    time_start = time.time()
     art_size = int(config["Settings"]["art_size"])
     x,y = (ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1))
     background = Image.new('RGB', (x,y), dominant_colour(file_name))
@@ -181,28 +180,29 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, icon, parent=None):
         QtWidgets.QSystemTrayIcon.__init__(self, icon, parent)
         self.setToolTip(f'Album Art Wallpaper')
-        menu = QtWidgets.QMenu(parent)
+        self.menu = QtWidgets.QMenu(parent)
 
-        default_wallpaper_item = menu.addAction("Set Default Wallpaper")
+        default_wallpaper_item = self.menu.addAction("Set Default Wallpaper")
         default_wallpaper_item.triggered.connect(self.set_default_wallpaper)
 
-        settings_item = menu.addAction("Settings")
+        settings_item = self.menu.addAction("Settings")
         settings_item.triggered.connect(self.settings)
 
-        about_item = menu.addAction("Help")
+        about_item = self.menu.addAction("Help")
         about_item.triggered.connect(self.open_readme)
 
-        bug_report_item = menu.addAction("Bug Report")
+        bug_report_item = self.menu.addAction("Bug Report")
         bug_report_item.triggered.connect(self.bug_report)
 
-        release_item = menu.addAction("v1.2")
+        release_item = self.menu.addAction("v1.2")
         release_item.triggered.connect(self.open_releases)
 
-        exit_ = menu.addAction("Quit")
-        exit_.triggered.connect(self.exit)
+        self.menu.addSeparator()
 
-        menu.addSeparator()
-        self.setContextMenu(menu)
+        exit_item = self.menu.addAction("Quit")
+        exit_item.triggered.connect(self.exit)
+
+        self.setContextMenu(self.menu)
     #     self.activated.connect(self.onTrayIconActivated)
     
     # def onTrayIconActivated(self, reason):
@@ -233,44 +233,45 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         sys.exit()
 
 
-config = configparser.ConfigParser()
-config.read('config.ini')
+if __name__ in "__main__":
+    config = configparser.ConfigParser()
+    config.read('config.ini')
 
-if not os.path.exists('images'):
-    os.makedirs('images')
-if not os.path.exists("images/default_wallpaper.jpg"):
-    set_default_wallpaper()
+    if not os.path.exists('images'):
+        os.makedirs('images')
+    if not os.path.exists("images/default_wallpaper.jpg"):
+        set_default_wallpaper()
 
-app = QtWidgets.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
 
-w = QtWidgets.QWidget()
-tray_icon = SystemTrayIcon(QtGui.QIcon("icon.ico"), w)
-tray_icon.show()
+    w = QtWidgets.QWidget()
+    tray_icon = SystemTrayIcon(QtGui.QIcon("icon.ico"), w)
+    tray_icon.show()
 
-if config["Service"]["service"].lower() == "spotify":
-    using_spotify = True
-elif config["Service"]["service"].lower().replace(".","") == "lastfm":
-    using_spotify = False
-else:
-    tray_icon.showMessage('No sevice set','Set the service in settings to spotify or last.fm')
-    subprocess.run(["notepad.exe","config.ini"])
-    sys.exit()
-
-if using_spotify:
-    if len(config["Spotify API Keys"]["CLIENT_SECRET"]) != 32 or \
-        len(config["Spotify API Keys"]["CLIENT_ID"]) != 32:
-        tray_icon.showMessage('Invalid API Keys','Set valid Spotify API Keys')
+    if config["Service"]["service"].lower() == "spotify":
+        using_spotify = True
+    elif config["Service"]["service"].lower().replace(".","") == "lastfm":
+        using_spotify = False
+    else:
+        tray_icon.showMessage('No sevice set','Set the service in settings to spotify or last.fm')
         subprocess.run(["notepad.exe","config.ini"])
         sys.exit()
 
-else:  # using last.fm
-    if len(config["Last.fm"]["api_key"]) != 32:
-        tray_icon.showMessage('Invalid API Key','Set a valid Last.fm API key')
-        subprocess.run(["notepad.exe","config.ini"])
-        sys.exit()
+    if using_spotify:
+        if len(config["Spotify API Keys"]["CLIENT_SECRET"]) != 32 or \
+            len(config["Spotify API Keys"]["CLIENT_ID"]) != 32:
+            tray_icon.showMessage('Invalid API Keys','Set valid Spotify API Keys')
+            subprocess.run(["notepad.exe","config.ini"])
+            sys.exit()
 
-thread = Worker()
-thread.finished.connect(app.exit)
-thread.start()
+    else:  # using last.fm
+        if len(config["Last.fm"]["api_key"]) != 32:
+            tray_icon.showMessage('Invalid API Key','Set a valid Last.fm API key')
+            subprocess.run(["notepad.exe","config.ini"])
+            sys.exit()
 
-sys.exit(app.exec_())
+    thread = Worker()
+    thread.finished.connect(app.exit)
+    thread.start()
+
+    sys.exit(app.exec_())
