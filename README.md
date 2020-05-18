@@ -15,16 +15,16 @@ An internet connection is required.
 
 There is a short initial setup:
 
-1. Set service in config.ini to either spotify or last.fm
-2. Add the API keys for the service you are using (read below)
-3. Open ```album-art-wallpaper.exe```, if you are using spotify a webpage will pop up where you can authorise your Spotify account
+1. Start the app. A music note icon will appear in the system tray
+2. Open settings bt right clicking the app in the system tray and set the service and API Keys (see below)
+3. If you are setting new keys for the first time save and start the app again
 4. Start playing music and your desktop wallpaper will change, you can right click the app in the system tray for options.
 
 If you are running the source you will also need to:
 
 - Install the dependencies ```pip install -r requirements.txt```
 - Rename ```config_sample.ini``` to ```config.ini```
-- If you want it to run at startup create a shortcut of ```album-art-wallpaper.exe``` and copy it into ```%appdata%\Microsoft\Windows\Start Menu\Programs\Startup```
+
 
 ### Getting your API Keys
 #### Spotify
@@ -36,7 +36,7 @@ Once you are on the app page go to EDIT SETTINGS > Redirect URIs, enter ``` http
 
 <img src = readme_images/image2.png width=300>
 
-Copy and paste the Client ID and Client Secret into the config.ini file. You can easily find this by clicking on settings in the context menu.
+Copy and paste the Client ID and Client Secret into the settings.
 
 <img src = readme_images/image3.png width=700>
 
@@ -44,15 +44,14 @@ Copy and paste the Client ID and Client Secret into the config.ini file. You can
 
 Create a new API account [here](https://www.last.fm/api/account/create) enter an email and an application name a callback URI is __not__ required.
 
-Add the API Key to config.ini you do __not__ need the shared secret.
+Add the API Key to the settings you do __not__ need the shared secret key.
 
-Add your last.fm username to config.ini
+Add your last.fm username to settings.
 
-### Settings
-There are two settings in the config.ini file:
+### Other Settings
 
-- ```request_interval``` controls how often a request is sent to the API.
-- ```art_size``` the size of the album artwork (px).
+- ```request_interval``` controls how often a request is sent to the API. ```default: 2```
+- ```art_size``` the size of the album artwork (px). All Last.fm art is 600x600px and Spotify is 640x640px but changing this value will resize the artwork. ```default: 640```
 
 ## Examples
 <img src = readme_images/example.jpg>
