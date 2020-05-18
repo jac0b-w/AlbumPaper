@@ -3,6 +3,7 @@ from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
 from colorthief import ColorThief
 
+version = "1.2"
 
 class TokenExpiredError(Exception):
     pass
@@ -85,7 +86,8 @@ def lastfm_current_track():
             "user":config["Last.fm"]["username"]
         }).json()["recenttracks"]["track"][0]
     except KeyError: # Occurs when last.fm api fails
-        return None
+        tray_icon.showMessage('Invalid API Key or Username','Set a valid Last.fm API Key and Username')
+        sys.exit()
     except:
         # occurs with poor/no connection
         return {"art_available":False}
@@ -120,7 +122,7 @@ def set_wallpaper(file_name):
     ctypes.windll.user32.SystemParametersInfoW(20, 0, abs_path , 0)
 
 
-def generate_wallpaper(file_name): #if resize = true, then px controls the resize dimentions
+def generate_wallpaper(file_name):
     art_size = int(config["Settings"]["art_size"])
     x,y = (ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1))
     background = Image.new('RGB', (x,y), dominant_colour(file_name))
@@ -131,7 +133,7 @@ def generate_wallpaper(file_name): #if resize = true, then px controls the resiz
         background.paste(art,(int((x-art.size[0])/2),int((y-art.size[1])/2)))
         background.save("images/generated_wallpaper.png")
         return "images/generated_wallpaper.png"
-    else:
+    else: # Images are identical
         return "images/default_wallpaper.jpg"
 
     
@@ -142,15 +144,40 @@ def set_default_wallpaper():
     shutil.copy(latest_file, "images/default_wallpaper.jpg")
 
 
+def check_config(config):
+    # invalid spotify keys
+    if config["Service"]["service"].lower() == "spotify":
+        if len(config["Spotify API Keys"]["CLIENT_SECRET"]) != 32 or \
+            len(config["Spotify API Keys"]["CLIENT_ID"]) != 32:
+            tray_icon.showMessage('Invalid API Keys','Set valid Spotify API Keys')
+            return False
+
+    # invalid last.fm key
+    elif config["Service"]["service"].lower().replace(".","") == "lastfm":
+        if len(config["Last.fm"]["api_key"]) != 32:
+            tray_icon.showMessage('Invalid API Key','Set a valid Last.fm API key')
+            return False
+
+    # If a service isn't set
+    else:
+        tray_icon.showMessage('No sevice set','Set the service in settings to spotify or last.fm')
+        return False
+
+    return True  # valid config file
+
+
 class Worker(QtCore.QThread):
     # Worker thread
     @QtCore.Slot()
     def run(self):
-        if using_spotify:
+        if config["Service"]["service"] == "spotify":
+            using_spotify = True
             sp = spotify_auth()
+        else:
+            using_spotify = False
 
         previous_wallpaper = None
-        request_interval = int(config["Settings"]["request_interval"])
+        request_interval = float(config["Settings"]["request_interval"])
 
         while True:
             time.sleep(request_interval)
@@ -174,13 +201,105 @@ class Worker(QtCore.QThread):
                 set_wallpaper("images/default_wallpaper.jpg")
                 previous_wallpaper = None
 
-            
+
+class SettingsWindow(QtWidgets.QDialog):
+    def __init__(self,parent=None):
+        if config["Service"]["service"].lower() == "spotify":
+            using_spotify = True
+        else:
+            using_spotify = False
+
+        super(SettingsWindow,self).__init__(parent)
+        self.setWindowTitle("Settings")
+        self.setGeometry(150,150,400,0) # x,y,w,h
+
+        # spotify section
+        self.spotify_radio_button = QtWidgets.QRadioButton("Spotify",checkable=True)
+        self.spotify_radio_button.setChecked(using_spotify)
+
+        self.spotify_client_id = QtWidgets.QLineEdit()
+        self.spotify_client_secret = QtWidgets.QLineEdit()
+        self.spotify_client_id.setPlaceholderText("Client ID")
+        self.spotify_client_secret.setPlaceholderText("Client Secret")
+        self.spotify_client_id.setMaxLength(32)
+        self.spotify_client_secret.setMaxLength(32)
+        self.spotify_client_id.setText(config["Spotify API Keys"]["CLIENT_ID"])
+        self.spotify_client_secret.setText(config["Spotify API Keys"]["CLIENT_SECRET"])
+
+        # last.fm section
+        self.lastfm_radio_button = QtWidgets.QRadioButton("Last.fm",checkable=True)
+        self.lastfm_radio_button.setChecked(not using_spotify)
+
+        self.lastfm_username = QtWidgets.QLineEdit()
+        self.lastfm_api_key = QtWidgets.QLineEdit()
+        self.lastfm_username.setPlaceholderText("Username")
+        self.lastfm_api_key.setPlaceholderText("API Key")
+        self.lastfm_api_key.setMaxLength(32)
+        self.lastfm_username.setText(config["Last.fm"]["username"])
+        self.lastfm_api_key.setText(config["Last.fm"]["api_key"])
+
+        # other settings
+        self.request_interval = QtWidgets.QDoubleSpinBox()
+        self.request_interval.setRange(0.0,60.0)
+        self.request_interval.setSingleStep(0.5)
+        self.request_interval.setValue(float(config["Settings"]["request_interval"]))
+        
+        self.art_size = QtWidgets.QSpinBox()
+        self.art_size.setRange(1,10_000)
+        self.art_size.setValue(int(config["Settings"]["art_size"]))
+        
+        self.save_button = QtWidgets.QPushButton("Save")
+        self.save_button.clicked.connect(self.save)
+
+        # radio buttons
+        self.radio_buttons = QtWidgets.QButtonGroup()
+        self.radio_buttons.addButton(self.spotify_radio_button)
+        self.radio_buttons.addButton(self.lastfm_radio_button)
+       
+
+        layout = QtWidgets.QFormLayout()
+        layout.addWidget(self.spotify_radio_button)
+        layout.addRow("Client ID:",self.spotify_client_id)
+        layout.addRow("Client Secret:",self.spotify_client_secret)
+        layout.addWidget(self.lastfm_radio_button)
+        layout.addRow("Username:",self.lastfm_username)
+        layout.addRow("API Key:",self.lastfm_api_key)
+        layout.addWidget(QtWidgets.QLabel(""))
+        layout.addRow("Request Interval (s):",self.request_interval)
+        layout.addRow("Art size (px):",self.art_size)
+        layout.addWidget(self.save_button)
+        self.setLayout(layout)
+
+        self.exec_()
+
+    def save(self):
+        if self.spotify_radio_button.isChecked():
+            config["Service"]["service"] = "spotify"
+        else:
+            config["Service"]["service"] = "last.fm"
+
+        config["Spotify API Keys"]["CLIENT_ID"] = self.spotify_client_id.text()
+        config["Spotify API Keys"]["CLIENT_SECRET"] = self.spotify_client_secret.text()
+
+        config["Last.fm"]["api_key"] = self.lastfm_api_key.text()
+        config["Last.fm"]["username"] = self.lastfm_username.text()
+
+        config["Settings"]["request_interval"] = str(self.request_interval.value())
+        config["Settings"]["art_size"] = str(self.art_size.value())
+
+        if check_config(config):
+            with open("config.ini","w") as f:
+                config.write(f)
+
+            self.close()
+
 
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, icon, parent=None):
         QtWidgets.QSystemTrayIcon.__init__(self, icon, parent)
-        self.setToolTip(f'Album Art Wallpaper')
+        self.setToolTip('Album Art Wallpaper')
         self.menu = QtWidgets.QMenu(parent)
+        self.cursor = QtGui.QCursor()
 
         default_wallpaper_item = self.menu.addAction("Set Default Wallpaper")
         default_wallpaper_item.triggered.connect(self.set_default_wallpaper)
@@ -188,90 +307,102 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         settings_item = self.menu.addAction("Settings")
         settings_item.triggered.connect(self.settings)
 
-        about_item = self.menu.addAction("Help")
-        about_item.triggered.connect(self.open_readme)
+        self.menu.addSeparator()
+
+        self.help_menu = self.menu.addMenu("Help")
+        help_latest = self.help_menu.addAction("Lastest Release")
+        help_current = self.help_menu.addAction("This Release")
+        help_latest.triggered.connect(self.open_link("https://github.com/jac0b-w/album-art-wallpaper/blob/master/README.md"))
+        help_current.triggered.connect(self.open_link(f"https://github.com/jac0b-w/album-art-wallpaper/blob/v{version}/README.md"))
 
         bug_report_item = self.menu.addAction("Bug Report")
-        bug_report_item.triggered.connect(self.bug_report)
+        bug_report_item.triggered.connect(self.open_link("https://github.com/jac0b-w/album-art-wallpaper/issues"))
 
-        release_item = self.menu.addAction("v1.2")
-        release_item.triggered.connect(self.open_releases)
+        release_item = self.menu.addAction(f"v{version}")
+        release_item.triggered.connect(self.open_link("https://github.com/jac0b-w/album-art-wallpaper/releases"))
 
         self.menu.addSeparator()
 
+        restart_item = self.menu.addAction("Restart")
+        restart_item.triggered.connect(self.exit(-1))
+
         exit_item = self.menu.addAction("Quit")
-        exit_item.triggered.connect(self.exit)
+        exit_item.triggered.connect(self.exit(0))
 
         self.setContextMenu(self.menu)
-    #     self.activated.connect(self.onTrayIconActivated)
+        self.activated.connect(self.onTrayIconActivated)
     
-    # def onTrayIconActivated(self, reason):
-    #     # Action on double click
-    #     if reason == self.DoubleClick:
-    #         pass
-    #     if reason == self.Trigger:
-    #         print("single click")
+    def onTrayIconActivated(self, reason):
+        if reason == self.Trigger:  # self.Trigger is left click
+            self.menu.setGeometry(*self.context_menu_pos())
+            self.menu.show()
+
+    def context_menu_pos(self):
+        menu_width = 170
+        menu_height = 180
+        screen_width = ctypes.windll.user32.GetSystemMetrics(0)
+        screen_height = ctypes.windll.user32.GetSystemMetrics(1)
+
+        if self.cursor.pos().x() + menu_width > screen_width:
+            x = screen_width - menu_width
+        else:
+            x = self.cursor.pos().x()
+
+        if self.cursor.pos().y() + menu_height > screen_height:
+            y = self.cursor.pos().y() - menu_height
+        else:
+            y = self.cursor.pos().y()
+
+        return x,y,menu_width,menu_height
+
+    def settings(self):
+        settings_window = SettingsWindow()
+        settings_window.show()
 
     def set_default_wallpaper(self):
         set_default_wallpaper()
-        tray_icon.showMessage('Saved','Wallpaper saved as default')
+        self.showMessage('Saved','Wallpaper saved as default')
 
-    def settings(self):
-        subprocess.Popen(["notepad.exe","config.ini"]) # subprocess.Popen is non-blocking
+    def open_link(self,link):
+        return lambda: webbrowser.open(link)
 
-    def open_readme(self):
-        webbrowser.open("https://github.com/jac0b-w/album-art-wallpaper/blob/master/README.md")
-
-    def bug_report(self):
-        webbrowser.open("https://github.com/jac0b-w/album-art-wallpaper/issues")
-
-    def open_releases(self):
-        webbrowser.open("https://github.com/jac0b-w/album-art-wallpaper/releases")
-
-    def exit(self):
-        set_wallpaper("images/default_wallpaper.jpg")
-        sys.exit()
-
+    def exit(self,exit_code):
+        def exit_function():
+            set_wallpaper("images/default_wallpaper.jpg")
+            return QtWidgets.QApplication.exit(exit_code)
+        
+        return exit_function
 
 if __name__ in "__main__":
-    config = configparser.ConfigParser()
-    config.read('config.ini')
+    exit_code = 0
+    while True:
+        config = configparser.ConfigParser()
+        config.read('config.ini')
 
-    if not os.path.exists('images'):
-        os.makedirs('images')
-    if not os.path.exists("images/default_wallpaper.jpg"):
-        set_default_wallpaper()
+        try:
+            app = QtWidgets.QApplication(sys.argv)
+        except RuntimeError:
+            app = QtWidgets.QApplication.instance()
 
-    app = QtWidgets.QApplication(sys.argv)
+        w = QtWidgets.QWidget()
+        tray_icon = SystemTrayIcon(QtGui.QIcon("icon.ico"), w)
+        tray_icon.show()
 
-    w = QtWidgets.QWidget()
-    tray_icon = SystemTrayIcon(QtGui.QIcon("icon.ico"), w)
-    tray_icon.show()
+        if not os.path.exists('images'):
+            os.makedirs('images')
+        if not os.path.exists("images/default_wallpaper.jpg"):
+            set_default_wallpaper()
 
-    if config["Service"]["service"].lower() == "spotify":
-        using_spotify = True
-    elif config["Service"]["service"].lower().replace(".","") == "lastfm":
-        using_spotify = False
-    else:
-        tray_icon.showMessage('No sevice set','Set the service in settings to spotify or last.fm')
-        subprocess.run(["notepad.exe","config.ini"])
-        sys.exit()
+        if check_config(config):
+            thread = Worker()
+            thread.finished.connect(app.exit)
+            thread.start()
 
-    if using_spotify:
-        if len(config["Spotify API Keys"]["CLIENT_SECRET"]) != 32 or \
-            len(config["Spotify API Keys"]["CLIENT_ID"]) != 32:
-            tray_icon.showMessage('Invalid API Keys','Set valid Spotify API Keys')
-            subprocess.run(["notepad.exe","config.ini"])
-            sys.exit()
+            exit_code = app.exec_()
 
-    else:  # using last.fm
-        if len(config["Last.fm"]["api_key"]) != 32:
-            tray_icon.showMessage('Invalid API Key','Set a valid Last.fm API key')
-            subprocess.run(["notepad.exe","config.ini"])
-            sys.exit()
+        else:
+            settings_window = SettingsWindow()
+            settings_window.show()
 
-    thread = Worker()
-    thread.finished.connect(app.exit)
-    thread.start()
-
-    sys.exit(app.exec_())
+        if exit_code != -1:
+            break
