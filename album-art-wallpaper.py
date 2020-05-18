@@ -211,7 +211,7 @@ class SettingsWindow(QtWidgets.QDialog):
 
         super(SettingsWindow,self).__init__(parent)
         self.setWindowTitle("Settings")
-        self.setFixedSize(400, 0)#
+        self.setFixedSize(400, 0)
 
         # spotify section
         self.spotify_radio_button = QtWidgets.QRadioButton("Spotify",checkable=True)
@@ -313,6 +313,8 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
         default_wallpaper_item = self.menu.addAction("Set Default Wallpaper")
         default_wallpaper_item.triggered.connect(self.set_default_wallpaper)
+
+        self.menu.addSeparator()
 
         settings_item = self.menu.addAction("Settings")
         settings_item.triggered.connect(self.settings)
