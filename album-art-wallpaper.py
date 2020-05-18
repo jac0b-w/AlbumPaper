@@ -3,7 +3,7 @@ from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
 from colorthief import ColorThief
 
-version = "1.2"
+version = "v1.3"  # As tagged on github
 
 class TokenExpiredError(Exception):
     pass
@@ -211,7 +211,7 @@ class SettingsWindow(QtWidgets.QDialog):
 
         super(SettingsWindow,self).__init__(parent)
         self.setWindowTitle("Settings")
-        self.setGeometry(150,150,400,0) # x,y,w,h
+        self.setFixedSize(400, 0)#
 
         # spotify section
         self.spotify_radio_button = QtWidgets.QRadioButton("Spotify",checkable=True)
@@ -258,16 +258,24 @@ class SettingsWindow(QtWidgets.QDialog):
        
 
         layout = QtWidgets.QFormLayout()
-        layout.addWidget(self.spotify_radio_button)
+        # Spotify section
+        spotify_help_link = QtWidgets.QLabel(f'<a href="https://github.com/jac0b-w/album-art-wallpaper/blob/{version}/README.md#spotify">Where do I find these?</a>')
+        spotify_help_link.linkActivated.connect(self.open_link)
+        layout.addRow(spotify_help_link,self.spotify_radio_button)
         layout.addRow("Client ID:",self.spotify_client_id)
         layout.addRow("Client Secret:",self.spotify_client_secret)
-        layout.addWidget(self.lastfm_radio_button)
+        # Last.fm section
+        lastfm_help_link = QtWidgets.QLabel(f'<a href="https://github.com/jac0b-w/album-art-wallpaper/blob/{version}/README.md#lastfm">Where do I find these?</a>')
+        lastfm_help_link.linkActivated.connect(self.open_link)
+        layout.addRow(lastfm_help_link,self.lastfm_radio_button)
         layout.addRow("Username:",self.lastfm_username)
         layout.addRow("API Key:",self.lastfm_api_key)
-        layout.addWidget(QtWidgets.QLabel(""))
+
+        layout.addRow(QtWidgets.QLabel(""))
         layout.addRow("Request Interval (s):",self.request_interval)
         layout.addRow("Art size (px):",self.art_size)
-        layout.addWidget(self.save_button)
+        layout.addRow("Restart required",self.save_button)
+
         self.setLayout(layout)
 
         self.exec_()
@@ -293,6 +301,8 @@ class SettingsWindow(QtWidgets.QDialog):
 
             self.close()
 
+    def open_link(self,link):
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl(link))
 
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, icon, parent=None):
@@ -313,12 +323,12 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         help_latest = self.help_menu.addAction("Lastest Release")
         help_current = self.help_menu.addAction("This Release")
         help_latest.triggered.connect(self.open_link("https://github.com/jac0b-w/album-art-wallpaper/blob/master/README.md"))
-        help_current.triggered.connect(self.open_link(f"https://github.com/jac0b-w/album-art-wallpaper/blob/v{version}/README.md"))
+        help_current.triggered.connect(self.open_link(f"https://github.com/jac0b-w/album-art-wallpaper/blob/{version}/README.md"))
 
         bug_report_item = self.menu.addAction("Bug Report")
         bug_report_item.triggered.connect(self.open_link("https://github.com/jac0b-w/album-art-wallpaper/issues"))
 
-        release_item = self.menu.addAction(f"v{version}")
+        release_item = self.menu.addAction(f"{version}")
         release_item.triggered.connect(self.open_link("https://github.com/jac0b-w/album-art-wallpaper/releases"))
 
         self.menu.addSeparator()
