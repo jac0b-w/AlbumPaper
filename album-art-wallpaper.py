@@ -351,7 +351,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
     def context_menu_pos(self):
         menu_width = 170
-        menu_height = 180
+        menu_height = 187
         screen_width = ctypes.windll.user32.GetSystemMetrics(0)
         screen_height = ctypes.windll.user32.GetSystemMetrics(1)
 
