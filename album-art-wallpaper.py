@@ -85,9 +85,8 @@ def lastfm_current_track():
             "limit":1,
             "user":config["Last.fm"]["username"]
         }).json()["recenttracks"]["track"][0]
-    except KeyError: # Occurs when last.fm api fails
-        tray_icon.showMessage('Invalid API Key or Username','Set a valid Last.fm API Key and Username')
-        sys.exit()
+    except KeyError: # Occurs when last.fm api fails or API keys are invalid
+        return None
     except:
         # occurs with poor/no connection
         return {"art_available":False}
