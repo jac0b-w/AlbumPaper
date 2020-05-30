@@ -165,6 +165,12 @@ def check_config(config):
 
     return True  # valid config file
 
+def check_file(path,end=True):
+    if not os.path.exists(path):
+        tray_icon.showMessage("Missing file",f"Can't find {path}")
+        app_log.error(f"Missing file: {path}")
+        if end:
+            sys.exit()
 
 class Worker(QtCore.QThread):
     # Worker thread
@@ -401,6 +407,7 @@ exit_code = 0, quit app
 if __name__ in "__main__":
     exit_code = 1
 
+    # logging errors
     handler = logging.handlers.RotatingFileHandler(
         "errors.log",
         maxBytes=500*1024,  # 500 kB
@@ -430,6 +437,11 @@ if __name__ in "__main__":
                 os.makedirs('images')
             if not os.path.exists("images/default_wallpaper.jpg"):
                 set_default_wallpaper()
+
+            check_file("config.ini",True)
+            check_file("icon.ico",True)
+            check_file("missing_art.jpg",True)
+            check_file("settings_icon.png",False)
 
             if check_config(config):
                 thread = Worker()
