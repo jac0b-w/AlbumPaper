@@ -1,11 +1,11 @@
-config.ini
 /env
 /.vscode
 /__pycache__
 /images
+/dist
+/build
 .cache
 config.ini
 test*
-/dist
-/build
 *.spec
+*.log*
