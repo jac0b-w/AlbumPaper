@@ -1,4 +1,5 @@
-import os, sys, time, json, glob, shutil, webbrowser, subprocess, ctypes, spotipy, urllib.request, configparser, requests
+import os, sys, time, json, glob, shutil, webbrowser, subprocess, ctypes, spotipy, urllib.request, configparser, requests, logging
+import logging.handlers
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
 from colorthief import ColorThief
@@ -85,9 +86,8 @@ def lastfm_current_track():
             "limit":1,
             "user":config["Last.fm"]["username"]
         }).json()["recenttracks"]["track"][0]
-    except KeyError: # Occurs when last.fm api fails
-        tray_icon.showMessage('Invalid API Key or Username','Set a valid Last.fm API Key and Username')
-        sys.exit()
+    except KeyError: # Occurs when last.fm api fails or API keys are invalid
+        return None
     except:
         # occurs with poor/no connection
         return {"art_available":False}
@@ -170,36 +170,44 @@ class Worker(QtCore.QThread):
     # Worker thread
     @QtCore.Slot()
     def run(self):
-        if config["Service"]["service"] == "spotify":
-            using_spotify = True
-            sp = spotify_auth()
-        else:
-            using_spotify = False
-
-        previous_wallpaper = None
-        request_interval = float(config["Settings"]["request_interval"])
-
-        while True:
-            time.sleep(request_interval)
-            if using_spotify:
-                try:
-                    current = spotify_current_track(sp)
-                except TokenExpiredError:
-                    sp = spotify_auth()
-                    continue
+        try:
+            if config["Service"]["service"] == "spotify":
+                using_spotify = True
+                sp = spotify_auth()
             else:
-                current = lastfm_current_track()
-                if current is None:
-                    continue
-            if current["art_available"]:
-                if current["image"] != previous_wallpaper:
-                    download_image(current["image"])
-                    generated_file = generate_wallpaper("images/album-art.jpg")
-                    set_wallpaper(generated_file)
-                    previous_wallpaper = current["image"]
-            elif previous_wallpaper is not None:
-                set_wallpaper("images/default_wallpaper.jpg")
-                previous_wallpaper = None
+                using_spotify = False
+
+            previous_wallpaper = None
+            request_interval = float(config["Settings"]["request_interval"])
+
+            while True:
+                time.sleep(request_interval)
+                if using_spotify:
+                    try:
+                        current = spotify_current_track(sp)
+                    except TokenExpiredError:
+                        sp = spotify_auth()
+                        continue
+                else:
+                    current = lastfm_current_track()
+                    if current is None:
+                        continue
+                if current["art_available"]:
+                    if current["image"] != previous_wallpaper:
+                        download_image(current["image"])
+                        try:  # Error raised when a user skips tracks rapidly after a restart
+                            generated_file = generate_wallpaper("images/album-art.jpg")
+                            set_wallpaper(generated_file)
+                            previous_wallpaper = current["image"]
+                        except:
+                            previous_wallpaper = None
+                elif previous_wallpaper is not None:
+                    set_wallpaper("images/default_wallpaper.jpg")
+                    previous_wallpaper = None
+
+        except:
+            app_log.exception("worker error")
+
 
 
 class SettingsWindow(QtWidgets.QDialog):
@@ -336,7 +344,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.menu.addSeparator()
 
         restart_item = self.menu.addAction("Restart")
-        restart_item.triggered.connect(self.exit(-1))
+        restart_item.triggered.connect(self.exit(1))
 
         exit_item = self.menu.addAction("Quit")
         exit_item.triggered.connect(self.exit(0))
@@ -385,36 +393,55 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         
         return exit_function
 
+'''
+exit_code = 1, restart app
+exit_code = 0, quit app
+'''
+
 if __name__ in "__main__":
-    exit_code = 0
-    while True:
-        config = configparser.ConfigParser()
-        config.read('config.ini')
+    exit_code = 1
 
+    handler = logging.handlers.RotatingFileHandler(
+        "errors.log",
+        maxBytes=500*1024,  # 500 kB
+        backupCount=1,
+    )
+    handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+    handler.setLevel(logging.ERROR)
+    app_log = logging.getLogger("root")
+    app_log.setLevel(logging.ERROR)
+    app_log.addHandler(handler)
+
+    while exit_code != 0:
         try:
-            app = QtWidgets.QApplication(sys.argv)
-        except RuntimeError:
-            app = QtWidgets.QApplication.instance()
+            config = configparser.ConfigParser()
+            config.read('config.ini')
 
-        w = QtWidgets.QWidget()
-        tray_icon = SystemTrayIcon(QtGui.QIcon("icon.ico"), w)
-        tray_icon.show()
+            try:
+                app = QtWidgets.QApplication(sys.argv)
+            except RuntimeError:
+                app = QtWidgets.QApplication.instance()
 
-        if not os.path.exists('images'):
-            os.makedirs('images')
-        if not os.path.exists("images/default_wallpaper.jpg"):
-            set_default_wallpaper()
+            w = QtWidgets.QWidget()
+            tray_icon = SystemTrayIcon(QtGui.QIcon("icon.ico"), w)
+            tray_icon.show()
 
-        if check_config(config):
-            thread = Worker()
-            thread.finished.connect(app.exit)
-            thread.start()
+            if not os.path.exists('images'):
+                os.makedirs('images')
+            if not os.path.exists("images/default_wallpaper.jpg"):
+                set_default_wallpaper()
 
-            exit_code = app.exec_()
+            if check_config(config):
+                thread = Worker()
+                thread.finished.connect(app.exit)
+                thread.start()
 
-        else:
-            settings_window = SettingsWindow()
-            settings_window.show()
+                exit_code = app.exec_()
 
-        if exit_code != -1:
-            break
+            else:
+                settings_window = SettingsWindow()
+                settings_window.show()
+
+        except:
+            app_log.exception("main error")
+            exit_code = 0
