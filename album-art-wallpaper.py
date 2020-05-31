@@ -226,6 +226,8 @@ class SettingsWindow(QtWidgets.QDialog):
         super(SettingsWindow,self).__init__(parent)
         self.setWindowTitle("Settings")
         self.setFixedSize(400, 0)
+        if os.path.exists("settings_icon.png"):
+            self.setWindowIcon(QtGui.QIcon("settings_icon.png"))
 
         # spotify section
         self.spotify_radio_button = QtWidgets.QRadioButton("Spotify",checkable=True)
