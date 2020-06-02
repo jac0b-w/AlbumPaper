@@ -1,17 +1,21 @@
 import os, sys, time, json, glob, shutil, webbrowser, subprocess, ctypes, spotipy, urllib.request, configparser, requests, logging
 import logging.handlers
 from PySide2 import QtWidgets, QtGui, QtCore
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageFilter
 from colorthief import ColorThief
+from themes import themes
 
 version = "v1.3.1"  # As tagged on github
 
 class TokenExpiredError(Exception):
     pass
 
+class MissingArtError(Exception):
+    pass
+
 def spotify_auth():
-    CLI_ID = config["Spotify API Keys"]["CLIENT_ID"]
-    CLI_SEC = config["Spotify API Keys"]["CLIENT_SECRET"]
+    CLI_ID = config["Spotify"]["CLIENT_ID"]
+    CLI_SEC = config["Spotify"]["CLIENT_SECRET"]
 
     REDIRECT_URI = "http://localhost:5000/callback/"
     SCOPE = "user-read-currently-playing"
@@ -108,11 +112,6 @@ def str_bool(string):
         return True
 
 
-def dominant_colour(file_name):
-    color_thief = ColorThief(file_name)
-    return color_thief.get_color(quality=50)
-    
-
 def download_image(url):
     urllib.request.urlretrieve(url, "images/album-art.jpg")
 
@@ -122,21 +121,6 @@ def set_wallpaper(file_name):
     ctypes.windll.user32.SystemParametersInfoW(20, 0, abs_path , 0)
 
 
-def generate_wallpaper(file_name):
-    art_size = int(config["Settings"]["art_size"])
-    x,y = (ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1))
-    background = Image.new('RGB', (x,y), dominant_colour(file_name))
-    art = Image.open(file_name).convert('RGB')
-
-    if ImageChops.difference(art, Image.open("missing_art.jpg").convert('RGB')).getbbox() is not None: # images are different
-        art = art.resize((art_size,art_size),1)
-        background.paste(art,(int((x-art.size[0])/2),int((y-art.size[1])/2)))
-        background.save("images/generated_wallpaper.png")
-        return "images/generated_wallpaper.png"
-    else: # Images are identical
-        return "images/default_wallpaper.jpg"
-
-    
 def set_default_wallpaper():
     cached_folder = os.path.expandvars(r'%APPDATA%\Microsoft\Windows\Themes\CachedFiles\*')
     list_of_files = glob.glob(cached_folder)
@@ -147,8 +131,8 @@ def set_default_wallpaper():
 def check_config(config):
     # invalid spotify keys
     if config["Service"]["service"].lower() == "spotify":
-        if len(config["Spotify API Keys"]["CLIENT_SECRET"]) != 32 or \
-            len(config["Spotify API Keys"]["CLIENT_ID"]) != 32:
+        if len(config["Spotify"]["CLIENT_SECRET"]) != 32 or \
+            len(config["Spotify"]["CLIENT_ID"]) != 32:
             tray_icon.showMessage('Invalid API Keys','Set valid Spotify API Keys')
             return False
 
@@ -172,6 +156,67 @@ def check_file(path,end=True):
         if end:
             sys.exit()
 
+
+class AlbumImage: # Make image manager?
+    def __init__(self,image_path):
+        self.image_path = image_path
+        self.art = Image.open(image_path).convert('RGB')
+
+        self.front_image_size = config["Settings"].getint("front_image_size")
+        self.blur_image_size = config["Settings"].getint("blur_image_size")
+        self.blur_radius = config["Settings"].getfloat("blur_image_radius")
+
+        self.front_image_enabled = config["Settings"].getboolean("front_image_enabled")
+        self.blur_image_enabled = config["Settings"].getboolean("blur_image_enabled")
+        
+        self.display_size = (ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1))
+
+    def gen_color_layer(self):
+        color_thief = ColorThief(self.image_path)
+        color = color_thief.get_color(quality=50)
+        return Image.new('RGB', self.display_size, color)
+
+    def gen_blur_layer(self):
+        if self.blur_image_enabled:
+            art_resized = self.art.resize([self.blur_image_size]*2,1)
+            return art_resized.filter(ImageFilter.GaussianBlur(self.blur_radius))
+        else:
+            return None
+
+    def gen_front_layer(self):
+        if self.front_image_enabled:
+            return self.art.resize([self.front_image_size]*2,1)
+        else:
+            return None
+
+    # ADD FUNCTIONALITY
+    def is_missing_lastfm(self):
+        if ImageChops.difference(self.art, Image.open("missing_art.jpg").convert('RGB')).getbbox() is None:
+            return True
+        else:
+            return False
+
+    def paste_images(self,base,*layers):
+        for layer in layers:
+            if layer is None:
+                continue
+            x = int((self.display_size[0] - layer.size[0])/2)
+            y = int((self.display_size[1] - layer.size[1])/2)
+            base.paste(layer,(x,y))
+        base.save("images/generated_wallpaper.png")
+        return None
+
+    def generate_wallpaper(self):
+        if not self.is_missing_lastfm():
+            color_layer = self.gen_color_layer()
+            blur_layer = self.gen_blur_layer()
+            front_layer = self.gen_front_layer()
+            self.paste_images(color_layer, blur_layer, front_layer)
+            return None
+        else:
+            raise MissingArtError
+
+
 class Worker(QtCore.QThread):
     # Worker thread
     @QtCore.Slot()
@@ -184,7 +229,7 @@ class Worker(QtCore.QThread):
                 using_spotify = False
 
             previous_wallpaper = None
-            request_interval = float(config["Settings"]["request_interval"])
+            request_interval = config["Settings"].getfloat("request_interval")
 
             while True:
                 time.sleep(request_interval)
@@ -201,12 +246,13 @@ class Worker(QtCore.QThread):
                 if current["art_available"]:
                     if current["image"] != previous_wallpaper:
                         download_image(current["image"])
-                        try:  # Error raised when a user skips tracks rapidly after a restart
-                            generated_file = generate_wallpaper("images/album-art.jpg")
-                            set_wallpaper(generated_file)
-                            previous_wallpaper = current["image"]
-                        except:
-                            previous_wallpaper = None
+                        # try:  # Error raised when a user skips tracks rapidly after a restart
+                        image = AlbumImage("images/album-art.jpg")
+                        image.generate_wallpaper()
+                        set_wallpaper("images/generated_wallpaper.png")
+                        previous_wallpaper = current["image"]
+                        # except:
+                        #     previous_wallpaper = None
                 elif previous_wallpaper is not None:
                     set_wallpaper("images/default_wallpaper.jpg")
                     previous_wallpaper = None
@@ -225,7 +271,7 @@ class SettingsWindow(QtWidgets.QDialog):
 
         super(SettingsWindow,self).__init__(parent)
         self.setWindowTitle("Settings")
-        self.setFixedSize(400, 0)
+        self.setFixedSize(540, 0)
         if os.path.exists("settings_icon.png"):
             self.setWindowIcon(QtGui.QIcon("settings_icon.png"))
 
@@ -239,8 +285,8 @@ class SettingsWindow(QtWidgets.QDialog):
         self.spotify_client_secret.setPlaceholderText("Client Secret")
         self.spotify_client_id.setMaxLength(32)
         self.spotify_client_secret.setMaxLength(32)
-        self.spotify_client_id.setText(config["Spotify API Keys"]["CLIENT_ID"])
-        self.spotify_client_secret.setText(config["Spotify API Keys"]["CLIENT_SECRET"])
+        self.spotify_client_id.setText(config["Spotify"]["CLIENT_ID"])
+        self.spotify_client_secret.setText(config["Spotify"]["CLIENT_SECRET"])
 
         # last.fm section
         self.lastfm_radio_button = QtWidgets.QRadioButton("Last.fm",checkable=True)
@@ -258,11 +304,11 @@ class SettingsWindow(QtWidgets.QDialog):
         self.request_interval = QtWidgets.QDoubleSpinBox()
         self.request_interval.setRange(0.0,60.0)
         self.request_interval.setSingleStep(0.5)
-        self.request_interval.setValue(float(config["Settings"]["request_interval"]))
+        self.request_interval.setValue(config["Settings"].getfloat("request_interval"))
         
         self.art_size = QtWidgets.QSpinBox()
         self.art_size.setRange(1,10_000)
-        self.art_size.setValue(int(config["Settings"]["art_size"]))
+        self.art_size.setValue(config["Settings"].getint("front_image_size"))
         
         self.save_button = QtWidgets.QPushButton("Save")
         self.save_button.clicked.connect(self.save)
@@ -271,7 +317,7 @@ class SettingsWindow(QtWidgets.QDialog):
         self.radio_buttons = QtWidgets.QButtonGroup()
         self.radio_buttons.addButton(self.spotify_radio_button)
         self.radio_buttons.addButton(self.lastfm_radio_button)
-       
+
 
         layout = QtWidgets.QFormLayout()
         # Spotify section
@@ -292,8 +338,14 @@ class SettingsWindow(QtWidgets.QDialog):
         layout.addRow("Art size (px):",self.art_size)
         layout.addRow("Restart required",self.save_button)
 
-        self.setLayout(layout)
+        # styling
+        try:
+            self.setStyleSheet(themes[config["Settings"]["theme"]]["settings_window"])
+        except KeyError:
+            pass
 
+        self.setLayout(layout)
+        
         self.exec_()
 
     def save(self):
@@ -302,14 +354,14 @@ class SettingsWindow(QtWidgets.QDialog):
         else:
             config["Service"]["service"] = "last.fm"
 
-        config["Spotify API Keys"]["CLIENT_ID"] = self.spotify_client_id.text()
-        config["Spotify API Keys"]["CLIENT_SECRET"] = self.spotify_client_secret.text()
+        config["Spotify"]["CLIENT_ID"] = self.spotify_client_id.text()
+        config["Spotify"]["CLIENT_SECRET"] = self.spotify_client_secret.text()
 
         config["Last.fm"]["api_key"] = self.lastfm_api_key.text()
         config["Last.fm"]["username"] = self.lastfm_username.text()
 
-        config["Settings"]["request_interval"] = str(self.request_interval.value())
-        config["Settings"]["art_size"] = str(self.art_size.value())
+        config["Settings"]["request_interval"] = self.request_interval.value()
+        config["Settings"]["front_image_size"] = self.art_size.value()
 
         if check_config(config):
             with open("config.ini","w") as f:
@@ -326,6 +378,11 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.setToolTip('Album Art Wallpaper')
         self.menu = QtWidgets.QMenu(parent)
         self.cursor = QtGui.QCursor()
+
+        try:
+            self.menu.setStyleSheet(themes[config["Settings"]["theme"]]["menu"])
+        except KeyError:
+            pass
 
         default_wallpaper_item = self.menu.addAction("Set Default Wallpaper")
         default_wallpaper_item.triggered.connect(self.set_default_wallpaper)
