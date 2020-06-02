@@ -4,7 +4,7 @@ from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
 from colorthief import ColorThief
 
-version = "v1.3"  # As tagged on github
+version = "v1.3.1"  # As tagged on github
 
 class TokenExpiredError(Exception):
     pass
