@@ -54,4 +54,7 @@ Add your last.fm username to settings.
 - ```art_size``` the size of the album artwork (px). All Last.fm art is 600x600px and Spotify is 640x640px but changing this value will resize the artwork. ```default: 640```
 
 ## Examples
+
+<img src = readme_images/example2.jpg>
+
 <img src = readme_images/example.jpg>
