@@ -2,16 +2,13 @@ import os, sys, time, json, glob, shutil, webbrowser, subprocess, ctypes, spotip
 import logging.handlers
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops, ImageFilter
-from colorthief import ColorThief
+from dominantcolor import dominant_color
 from themes import themes
+from io import BytesIO
 
-version = "v1.3.1"  # As tagged on github
 
-class TokenExpiredError(Exception):
-    pass
+__version__ = "v2.0"  # As tagged on github
 
-class MissingArtError(Exception):
-    pass
 
 def spotify_auth():
     CLI_ID = config["Spotify"]["CLIENT_ID"]
@@ -54,69 +51,11 @@ def spotify_auth():
         sys.exit()
 
 
-def spotify_current_track(sp):
-    try:
-        current = sp.currently_playing()
-        return {
-            "art_available":current["is_playing"],
-            "image":current["item"]["album"]["images"][0]["url"],
-        }
-    except spotipy.client.SpotifyException:
-        raise TokenExpiredError
-    except:
-        return {"art_available":False}
-
-
-def lastfm_request(payload):
-    try:
-        # define headers and URL
-        headers = {'user-agent': "album-art-wallpaper"}
-        url = 'http://ws.audioscrobbler.com/2.0/'
-
-        # Add API key and format to the payload
-        payload['api_key'] = config["Last.fm"]["api_key"]
-        payload['format'] = 'json'
-
-        response = requests.get(url, headers=headers, params=payload)
-        return response
-    except:
-        return None
-
-
-def lastfm_current_track():
-    try:
-        current = lastfm_request({
-            "method":"user.getRecentTracks",
-            "limit":1,
-            "user":config["Last.fm"]["username"]
-        }).json()["recenttracks"]["track"][0]
-    except KeyError: # Occurs when last.fm api fails or API keys are invalid
-        return None
-    except:
-        # occurs with poor/no connection
-        return {"art_available":False}
-    try:
-        return {
-            "art_available":str_bool(current["@attr"]["nowplaying"]),
-            "image": current["image"][0]["#text"].replace("34s","600x600"),
-        }
-    except: # occurs when the user isn't playing a track
-        return {"art_available":False}
-
-
-def str_bool(string):
-    string = string.lower()
-    if string == "false" or string == "0":
-        return False
-    elif string == "true" or string == "1":
-        return True
-
-
-def download_image(url):
-    urllib.request.urlretrieve(url, "images/album-art.jpg")
-
-
-def set_wallpaper(file_name):
+def set_wallpaper(is_default):
+    if is_default:
+        file_name = "images/default_wallpaper.jpg"
+    else:
+        file_name = "images/generated_wallpaper.jpg"
     abs_path = os.path.abspath(file_name)
     ctypes.windll.user32.SystemParametersInfoW(20, 0, abs_path , 0)
 
@@ -157,11 +96,113 @@ def check_file(path,end=True):
             sys.exit()
 
 
-class AlbumImage: # Make image manager?
-    def __init__(self,image_path):
-        self.image_path = image_path
-        self.art = Image.open(image_path).convert('RGB')
+class Timer:
+    def __init__(self):
+        self.time = time.time()
 
+    def ping(self,name):
+        print(f"{name} took {time.time()-self.time}")
+        self.time = time.time()
+
+
+class CurrentArt():
+    def __init__(self,sp=None):
+        if sp is None:  # using lastfm
+            self.art_url = self.lastfm_art_url
+        else:
+            self.art_url = self.spotify_art_url
+        
+        self.missing_art = Image.open("assets/missing_art.jpg").convert('RGB')
+        self.sp = sp
+        self.previous_image_url = None
+    
+    def spotify_art_url(self):
+        try:
+            current = self.sp.currently_playing()
+            if current["is_playing"]:
+                return current["item"]["album"]["images"][0]["url"]
+            else:
+                return "default"
+        except spotipy.client.SpotifyException: # Token expired
+            spotify_auth()
+        except (IndexError,TypeError):  # local tracks, no devices playing
+            return "default"
+
+    str_bool = lambda self,string: string.lower() == "true"
+
+    def str_bool(self,string):
+        return string.lower() == "true"
+
+    def lastfm_request(payload):
+        try:
+            # define headers and URL
+            headers = {'user-agent': "album-art-wallpaper"}
+            url = 'http://ws.audioscrobbler.com/2.0/'
+
+            payload = {
+                "method":"user.getRecentTracks",
+                "limit":1,
+                "user":config["Last.fm"]["username"],
+                "api_key":config["Last.fm"]["api_key"],
+                "format":"json"
+            }
+
+            response = requests.get(url, headers=headers, params=payload)
+            return response
+        except:
+            print("[ERROR] Last.fm request error")
+            return None
+
+    def lastfm_art_url(self):
+        try:
+            current = self.lastfm_request().json()["recenttracks"]["track"][0]
+        except KeyError: # Occurs when last.fm api fails (breifly) or API keys are invalid
+            return None
+        except:
+            # occurs with poor/no connection
+            return "default"
+        try:
+            if self.str_bool(current["@attr"]["nowplaying"]):
+                return current["image"][0]["#text"].replace("34s","600x600")
+            else:   # when track is not playing
+                return "default"
+        except: # occurs when the user isn't playing a track
+            return "default"
+
+    def download_image(self,url):
+        print("IMAGE DOWNLOADED")
+        response = requests.get(url)
+        return Image.open(BytesIO(response.content)).convert("RGB")
+
+    '''
+    3 possible inputs:
+    url string   | Set wallpaper to this image (if it's not lastfm missing image)
+    "default"    | Set default wallpaper
+    None         | Do not change wallpaper
+
+    3 Possible outputs
+    Image.Image  | Set wallpaper to this image
+    "default"    | Set default wallpaper
+    None         | Do not change wallpaper
+    '''
+
+    def get_current_art(self):
+        image_url = self.art_url()
+        if (image_url is not None) and (image_url != self.previous_image_url):
+            self.previous_image_url = image_url
+            if image_url == "default":
+                return "default"
+            art = self.download_image(image_url)
+            if ImageChops.difference(art, self.missing_art).getbbox() is None:
+                return "default"
+            else:
+                return art
+        else:
+            return None
+
+
+class GenerateWallpaper:
+    def __init__(self):
         self.front_image_size = config["Settings"].getint("front_image_size")
         self.blur_image_size = config["Settings"].getint("blur_image_size")
         self.blur_radius = config["Settings"].getfloat("blur_image_radius")
@@ -169,52 +210,57 @@ class AlbumImage: # Make image manager?
         self.front_image_enabled = config["Settings"].getboolean("front_image_enabled")
         self.blur_image_enabled = config["Settings"].getboolean("blur_image_enabled")
         
-        self.display_size = (ctypes.windll.user32.GetSystemMetrics(0), ctypes.windll.user32.GetSystemMetrics(1))
+        dw = app.desktop()  # dw = QDesktopWidget() also works if app is created
+        self.display_size = (dw.screenGeometry().width(),dw.screenGeometry().height())
+        self.avaliable_size = (dw.availableGeometry().width(),dw.availableGeometry().height())
 
-    def gen_color_layer(self):
-        color_thief = ColorThief(self.image_path)
-        color = color_thief.get_color(quality=50)
-        return Image.new('RGB', self.display_size, color)
+    def gen_color_layer(self,image):
+        color = dominant_color(image)
+        return Image.new("RGB",self.display_size,color)
 
-    def gen_blur_layer(self):
+    def gen_blur_layer(self,image):
         if self.blur_image_enabled:
-            art_resized = self.art.resize([self.blur_image_size]*2,1)
+            art_resized = image.resize([self.blur_image_size]*2,1)
             return art_resized.filter(ImageFilter.GaussianBlur(self.blur_radius))
         else:
             return None
 
-    def gen_front_layer(self):
+    def gen_front_layer(self,image):
         if self.front_image_enabled:
-            return self.art.resize([self.front_image_size]*2,1)
+            return image.resize([self.front_image_size]*2,1)
         else:
             return None
 
-    # ADD FUNCTIONALITY
-    def is_missing_lastfm(self):
-        if ImageChops.difference(self.art, Image.open("missing_art.jpg").convert('RGB')).getbbox() is None:
-            return True
-        else:
-            return False
+    def save_image(self,path,image):
+        try:
+            image.save(path,"JPEG",quality=95)
+        except OSError:
+            time.sleep(0.1)
+            save_image(path,image)
 
     def paste_images(self,base,*layers):
         for layer in layers:
             if layer is None:
                 continue
-            x = int((self.display_size[0] - layer.size[0])/2)
-            y = int((self.display_size[1] - layer.size[1])/2)
+            x = int((self.avaliable_size[0] - layer.size[0])/2)
+            y = int((self.avaliable_size[1] - layer.size[1])/2)
             base.paste(layer,(x,y))
-        base.save("images/generated_wallpaper.png")
-        return None
+        self.save_image("images/generated_wallpaper.jpg",base)
 
-    def generate_wallpaper(self):
-        if not self.is_missing_lastfm():
-            color_layer = self.gen_color_layer()
-            blur_layer = self.gen_blur_layer()
-            front_layer = self.gen_front_layer()
+    def generate_wallpaper(self,image):
+        if isinstance(image,Image.Image):
+            timer = Timer()
+            color_layer = self.gen_color_layer(image)
+            timer.ping("color layer")
+            blur_layer = self.gen_blur_layer(image)
+            timer.ping("blur layer")
+            front_layer = self.gen_front_layer(image)
+            timer.ping("front layer")
             self.paste_images(color_layer, blur_layer, front_layer)
-            return None
-        else:
-            raise MissingArtError
+            timer.ping("paste images")
+            set_wallpaper(False)
+        elif image == "default":
+            set_wallpaper(True)
 
 
 class Worker(QtCore.QThread):
@@ -223,43 +269,23 @@ class Worker(QtCore.QThread):
     def run(self):
         try:
             if config["Service"]["service"] == "spotify":
-                using_spotify = True
                 sp = spotify_auth()
+                get_art = CurrentArt(sp)
             else:
-                using_spotify = False
+                get_art = CurrentArt()
 
             previous_wallpaper = None
             request_interval = config["Settings"].getfloat("request_interval")
 
+            
+            set_wallpaper = GenerateWallpaper()
+
             while True:
-                time.sleep(request_interval)
-                if using_spotify:
-                    try:
-                        current = spotify_current_track(sp)
-                    except TokenExpiredError:
-                        sp = spotify_auth()
-                        continue
-                else:
-                    current = lastfm_current_track()
-                    if current is None:
-                        continue
-                if current["art_available"]:
-                    if current["image"] != previous_wallpaper:
-                        download_image(current["image"])
-                        # try:  # Error raised when a user skips tracks rapidly after a restart
-                        image = AlbumImage("images/album-art.jpg")
-                        image.generate_wallpaper()
-                        set_wallpaper("images/generated_wallpaper.png")
-                        previous_wallpaper = current["image"]
-                        # except:
-                        #     previous_wallpaper = None
-                elif previous_wallpaper is not None:
-                    set_wallpaper("images/default_wallpaper.jpg")
-                    previous_wallpaper = None
+                image = get_art.get_current_art()
+                set_wallpaper.generate_wallpaper(image)
 
         except:
             app_log.exception("worker error")
-
 
 
 class SettingsWindow(QtWidgets.QDialog):
@@ -272,11 +298,11 @@ class SettingsWindow(QtWidgets.QDialog):
         super(SettingsWindow,self).__init__(parent)
         self.setWindowTitle("Settings")
         self.setFixedSize(540, 0)
-        if os.path.exists("settings_icon.png"):
-            self.setWindowIcon(QtGui.QIcon("settings_icon.png"))
+        if os.path.exists("assets/settings_icon.png"):
+            self.setWindowIcon(QtGui.QIcon("assets/settings_icon.png"))
 
         # spotify section
-        self.spotify_radio_button = QtWidgets.QRadioButton("Spotify",checkable=True)
+        self.spotify_radio_button = QtWidgets.QRadioButton("Spotify (recommended)",checkable=True)
         self.spotify_radio_button.setChecked(using_spotify)
 
         self.spotify_client_id = QtWidgets.QLineEdit()
@@ -321,13 +347,13 @@ class SettingsWindow(QtWidgets.QDialog):
 
         layout = QtWidgets.QFormLayout()
         # Spotify section
-        spotify_help_link = QtWidgets.QLabel(f'<a href="https://github.com/jac0b-w/album-art-wallpaper/blob/{version}/README.md#spotify">Where do I find these?</a>')
+        spotify_help_link = QtWidgets.QLabel(f'<a href="https://github.com/jac0b-w/album-art-wallpaper/blob/{__version__}/README.md#spotify">Where do I find these?</a>')
         spotify_help_link.linkActivated.connect(self.open_link)
         layout.addRow(spotify_help_link,self.spotify_radio_button)
         layout.addRow("Client ID:",self.spotify_client_id)
         layout.addRow("Client Secret:",self.spotify_client_secret)
         # Last.fm section
-        lastfm_help_link = QtWidgets.QLabel(f'<a href="https://github.com/jac0b-w/album-art-wallpaper/blob/{version}/README.md#lastfm">Where do I find these?</a>')
+        lastfm_help_link = QtWidgets.QLabel(f'<a href="https://github.com/jac0b-w/album-art-wallpaper/blob/{__version__}/README.md#lastfm">Where do I find these?</a>')
         lastfm_help_link.linkActivated.connect(self.open_link)
         layout.addRow(lastfm_help_link,self.lastfm_radio_button)
         layout.addRow("Username:",self.lastfm_username)
@@ -360,8 +386,8 @@ class SettingsWindow(QtWidgets.QDialog):
         config["Last.fm"]["api_key"] = self.lastfm_api_key.text()
         config["Last.fm"]["username"] = self.lastfm_username.text()
 
-        config["Settings"]["request_interval"] = self.request_interval.value()
-        config["Settings"]["front_image_size"] = self.art_size.value()
+        config["Settings"]["request_interval"] = str(self.request_interval.value())
+        config["Settings"]["front_image_size"] = str(self.art_size.value())
 
         if check_config(config):
             with open("config.ini","w") as f:
@@ -398,12 +424,12 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         help_latest = self.help_menu.addAction("Lastest Release")
         help_current = self.help_menu.addAction("This Release")
         help_latest.triggered.connect(self.open_link("https://github.com/jac0b-w/album-art-wallpaper/blob/master/README.md"))
-        help_current.triggered.connect(self.open_link(f"https://github.com/jac0b-w/album-art-wallpaper/blob/{version}/README.md"))
+        help_current.triggered.connect(self.open_link(f"https://github.com/jac0b-w/album-art-wallpaper/blob/{__version__}/README.md"))
 
         bug_report_item = self.menu.addAction("Bug Report")
         bug_report_item.triggered.connect(self.open_link("https://github.com/jac0b-w/album-art-wallpaper/issues"))
 
-        release_item = self.menu.addAction(f"{version}")
+        release_item = self.menu.addAction(f"{__version__}")
         release_item.triggered.connect(self.open_link("https://github.com/jac0b-w/album-art-wallpaper/releases"))
 
         self.menu.addSeparator()
@@ -453,7 +479,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
     def exit(self,exit_code):
         def exit_function():
-            set_wallpaper("images/default_wallpaper.jpg")
+            set_wallpaper(is_default = True)
             return QtWidgets.QApplication.exit(exit_code)
         
         return exit_function
@@ -489,7 +515,7 @@ if __name__ in "__main__":
                 app = QtWidgets.QApplication.instance()
 
             w = QtWidgets.QWidget()
-            tray_icon = SystemTrayIcon(QtGui.QIcon("icon.ico"), w)
+            tray_icon = SystemTrayIcon(QtGui.QIcon("assets/icon.ico"), w)
             tray_icon.show()
 
             if not os.path.exists('images'):
@@ -498,9 +524,9 @@ if __name__ in "__main__":
                 set_default_wallpaper()
 
             check_file("config.ini",True)
-            check_file("icon.ico",True)
-            check_file("missing_art.jpg",True)
-            check_file("settings_icon.png",False)
+            check_file("assets/icon.ico",True)
+            check_file("assets/missing_art.jpg",True)
+            check_file("assets/settings_icon.png",False)
 
             if check_config(config):
                 thread = Worker()
