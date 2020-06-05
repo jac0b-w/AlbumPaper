@@ -88,11 +88,11 @@ def check_config(config):
 
     return True  # valid config file
 
-def check_file(path,end=True):
+def check_file(path,quit_if_missing=True):
     if not os.path.exists(path):
         tray_icon.showMessage("Missing file",f"Can't find {path}")
         app_log.error(f"Missing file: {path}")
-        if end:
+        if quit_if_missing:
             sys.exit()
 
 
@@ -281,6 +281,7 @@ class Worker(QtCore.QThread):
             set_wallpaper = GenerateWallpaper()
 
             while True:
+                time.sleep(request_interval)
                 image = get_art.get_current_art()
                 set_wallpaper.generate_wallpaper(image)
 
