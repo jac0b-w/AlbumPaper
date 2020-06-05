@@ -5,8 +5,6 @@ from PIL import Image, ImageChops, ImageFilter
 from themes import themes
 from io import BytesIO
 import numpy as np
-import scipy
-import scipy.misc
 import scipy.cluster
 
 
