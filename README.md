@@ -51,7 +51,6 @@ Add your last.fm username to settings.
 ### Other Settings
 
 - ```request_interval``` controls how often a request is sent to the API. ```default: 2```
-- ```art_size``` the size of the album artwork (px). All Last.fm art is 600x600px and Spotify is 640x640px but changing this value will resize the artwork. ```default: 640```
 
 ## Examples
 
