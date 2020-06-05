@@ -236,7 +236,7 @@ class GenerateWallpaper:
             image.save(path,"JPEG",quality=95)
         except OSError:
             time.sleep(0.1)
-            save_image(path,image)
+            self.save_image(path,image)
 
     def paste_images(self,base,*layers):
         for layer in layers:
@@ -290,10 +290,7 @@ class Worker(QtCore.QThread):
 
 class SettingsWindow(QtWidgets.QDialog):
     def __init__(self,parent=None):
-        if config["Service"]["service"].lower() == "spotify":
-            using_spotify = True
-        else:
-            using_spotify = False
+        using_spotify = (config["Service"]["service"].lower() == "spotify")
 
         super(SettingsWindow,self).__init__(parent)
         self.setWindowTitle("Settings")
@@ -302,7 +299,7 @@ class SettingsWindow(QtWidgets.QDialog):
             self.setWindowIcon(QtGui.QIcon("assets/settings_icon.png"))
 
         # spotify section
-        self.spotify_radio_button = QtWidgets.QRadioButton("Spotify (recommended)",checkable=True)
+        self.spotify_radio_button = QtWidgets.QRadioButton(checkable=True)
         self.spotify_radio_button.setChecked(using_spotify)
 
         self.spotify_client_id = QtWidgets.QLineEdit()
@@ -315,7 +312,7 @@ class SettingsWindow(QtWidgets.QDialog):
         self.spotify_client_secret.setText(config["Spotify"]["CLIENT_SECRET"])
 
         # last.fm section
-        self.lastfm_radio_button = QtWidgets.QRadioButton("Last.fm",checkable=True)
+        self.lastfm_radio_button = QtWidgets.QRadioButton(checkable=True)
         self.lastfm_radio_button.setChecked(not using_spotify)
 
         self.lastfm_username = QtWidgets.QLineEdit()
@@ -326,53 +323,83 @@ class SettingsWindow(QtWidgets.QDialog):
         self.lastfm_username.setText(config["Last.fm"]["username"])
         self.lastfm_api_key.setText(config["Last.fm"]["api_key"])
 
+        # radio buttons group
+        self.radio_buttons = QtWidgets.QButtonGroup()
+        self.radio_buttons.addButton(self.spotify_radio_button)
+        self.radio_buttons.addButton(self.lastfm_radio_button)
+
+        # layer settings
+        self.front_image_checkbox = QtWidgets.QCheckBox()
+        self.front_image_checkbox.setChecked(config["Settings"].getboolean("front_image_enabled"))
+        self.front_image_size = QtWidgets.QSpinBox()
+        self.front_image_size.setRange(1,10_000)
+        self.front_image_size.setValue(config["Settings"].getint("front_image_size"))
+
+        self.blur_image_checkbox = QtWidgets.QCheckBox()
+        self.blur_image_checkbox.setChecked(config["Settings"].getboolean("blur_image_enabled"))
+        self.blur_image_size = QtWidgets.QSpinBox()
+        self.blur_image_size.setRange(1,10_000)
+        self.blur_image_size.setValue(config["Settings"].getint("blur_image_size"))
+        self.blur_image_radius = QtWidgets.QDoubleSpinBox()
+        self.blur_image_radius.setRange(0.0,100.0)
+        self.blur_image_radius.setSingleStep(0.5)
+        self.blur_image_radius.setValue(config["Settings"].getfloat("blur_image_radius"))
+
         # other settings
+        self.theme_selector = QtWidgets.QComboBox()
+        for theme in themes:
+            self.theme_selector.addItem(theme)
+        self.theme_selector.setCurrentIndex(
+            self.theme_selector.findText(config["Settings"]["theme"],
+            QtCore.Qt.MatchFixedString)
+        )
+
         self.request_interval = QtWidgets.QDoubleSpinBox()
         self.request_interval.setRange(0.0,60.0)
         self.request_interval.setSingleStep(0.5)
         self.request_interval.setValue(config["Settings"].getfloat("request_interval"))
         
-        self.art_size = QtWidgets.QSpinBox()
-        self.art_size.setRange(1,10_000)
-        self.art_size.setValue(config["Settings"].getint("front_image_size"))
-        
         self.save_button = QtWidgets.QPushButton("Save")
         self.save_button.clicked.connect(self.save)
-
-        # radio buttons
-        self.radio_buttons = QtWidgets.QButtonGroup()
-        self.radio_buttons.addButton(self.spotify_radio_button)
-        self.radio_buttons.addButton(self.lastfm_radio_button)
-
-
+        
+        # layout
         layout = QtWidgets.QFormLayout()
+
+        help_link = QtWidgets.QLabel(f'<a href="https://github.com/jac0b-w/album-art-wallpaper#getting-started">Where do I find these?</a>')
+        help_link.linkActivated.connect(self.open_link)
+        layout.addRow(help_link)
+
         # Spotify section
-        spotify_help_link = QtWidgets.QLabel(f'<a href="https://github.com/jac0b-w/album-art-wallpaper/blob/{__version__}/README.md#spotify">Where do I find these?</a>')
-        spotify_help_link.linkActivated.connect(self.open_link)
-        layout.addRow(spotify_help_link,self.spotify_radio_button)
-        layout.addRow("Client ID:",self.spotify_client_id)
-        layout.addRow("Client Secret:",self.spotify_client_secret)
-        # Last.fm section
-        lastfm_help_link = QtWidgets.QLabel(f'<a href="https://github.com/jac0b-w/album-art-wallpaper/blob/{__version__}/README.md#lastfm">Where do I find these?</a>')
-        lastfm_help_link.linkActivated.connect(self.open_link)
-        layout.addRow(lastfm_help_link,self.lastfm_radio_button)
-        layout.addRow("Username:",self.lastfm_username)
-        layout.addRow("API Key:",self.lastfm_api_key)
+        layout.addRow("Spotify (recommended)",self.spotify_radio_button)
+        layout.addRow("Client ID",self.spotify_client_id)
+        layout.addRow("Client Secret",self.spotify_client_secret)
 
         layout.addRow(QtWidgets.QLabel(""))
-        layout.addRow("Request Interval (s):",self.request_interval)
-        layout.addRow("Art size (px):",self.art_size)
-        layout.addRow("Restart required",self.save_button)
+        # Last.fm section
+        layout.addRow("Last.fm",self.lastfm_radio_button)
+        layout.addRow("Username",self.lastfm_username)
+        layout.addRow("API Key",self.lastfm_api_key)
+
+        layout.addRow(QtWidgets.QLabel(""))
+        # layer settings
+        layout.addRow("Art Image",self.front_image_checkbox)
+        layout.addRow("Art Image Size (px)",self.front_image_size)
+        layout.addRow("Blur Image",self.blur_image_checkbox)
+        layout.addRow("Blur Image Size (px)",self.blur_image_size)
+        layout.addRow("Blur Strength",self.blur_image_radius)
+
+        layout.addRow(QtWidgets.QLabel(""))
+
+        # other settings
+        layout.addRow("Theme",self.theme_selector)
+        layout.addRow("Request Interval (s)",self.request_interval)
+        layout.addRow("",self.save_button)
 
         # styling
-        try:
-            self.setStyleSheet(themes[config["Settings"]["theme"]]["settings_window"])
-        except KeyError:
-            pass
+        self.setStyleSheet(themes[config["Settings"]["theme"]]["settings_window"])
 
         self.setLayout(layout)
-        
-        self.exec_()
+        self.setAttribute(QtGui.Qt.WA_DeleteOnClose)   
 
     def save(self):
         if self.spotify_radio_button.isChecked():
@@ -386,17 +413,28 @@ class SettingsWindow(QtWidgets.QDialog):
         config["Last.fm"]["api_key"] = self.lastfm_api_key.text()
         config["Last.fm"]["username"] = self.lastfm_username.text()
 
+        # layer settings
+        config["Settings"]["front_image_enabled"] = str(self.front_image_checkbox.isChecked())
+        config["Settings"]["front_image_size"] = str(self.front_image_size.value())
+        config["Settings"]["blur_image_enabled"] = str(self.blur_image_checkbox.isChecked())
+        config["Settings"]["blur_image_size"] = str(self.blur_image_size.value())
+        config["Settings"]["blur_image_radius"] = str(self.blur_image_radius.value())
+
+        config["Settings"]["theme"] = self.theme_selector.currentText()
         config["Settings"]["request_interval"] = str(self.request_interval.value())
-        config["Settings"]["front_image_size"] = str(self.art_size.value())
 
         if check_config(config):
             with open("config.ini","w") as f:
                 config.write(f)
 
-            self.close()
+            set_wallpaper(is_default = True)
+            QtWidgets.QApplication.exit(1)
 
     def open_link(self,link):
         QtGui.QDesktopServices.openUrl(QtCore.QUrl(link))
+    
+    def reject(self):
+        QtWidgets.QApplication.exit(1)
 
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, icon, parent=None):
@@ -467,8 +505,8 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         return x,y,menu_width,menu_height
 
     def settings(self):
-        settings_window = SettingsWindow()
         settings_window.show()
+        settings_window.activateWindow()
 
     def set_default_wallpaper(self):
         set_default_wallpaper()
@@ -480,7 +518,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def exit(self,exit_code):
         def exit_function():
             set_wallpaper(is_default = True)
-            return QtWidgets.QApplication.exit(exit_code)
+            QtWidgets.QApplication.exit(exit_code)
         
         return exit_function
 
@@ -515,6 +553,7 @@ if __name__ in "__main__":
                 app = QtWidgets.QApplication.instance()
 
             w = QtWidgets.QWidget()
+            settings_window = SettingsWindow(parent=w)
             tray_icon = SystemTrayIcon(QtGui.QIcon("assets/icon.ico"), w)
             tray_icon.show()
 

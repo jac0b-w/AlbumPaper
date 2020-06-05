@@ -1,8 +1,11 @@
 themes = {
-    "dark":{
+    "Default":{
+        "settings_window":"",
+        "menu":""
+    },
+    "Dark":{
         "settings_window":'''
             QLineEdit  {
-                border-radius: 10px;
                 border: 1px solid white;
                 width: 150;
                 height: 20px;
@@ -30,7 +33,6 @@ themes = {
             }
             QSpinBox
             {
-                border-radius: 10px;
                 border: 1px solid white;
                 width: 150;
                 height: 20px;
@@ -40,7 +42,6 @@ themes = {
             }
             QDoubleSpinBox
             {
-                border-radius: 10px;
                 border: 1px solid white;
                 width: 150;
                 height: 20px;
@@ -48,9 +49,24 @@ themes = {
                 color: white;
                 padding-left: 6px;
             }
+            QComboBox
+            {
+                border: 1px solid white;
+                width: 150;
+                height: 20px;
+                background-color: #6f6f76;
+                color: white;
+                padding-left: 6px;
+            }
+            QComboBox QAbstractItemView
+            {
+                border: 1px solid white;
+                selection-background-color: #262626;
+                color:white;
+            }
             QWidget
             {
-                background: black;
+                background-color: black;
                 font-size: 15px;
             }
         ''',
