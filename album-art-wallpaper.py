@@ -2,9 +2,12 @@ import os, sys, time, json, glob, shutil, webbrowser, subprocess, ctypes, spotip
 import logging.handlers
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops, ImageFilter
-from dominantcolor import dominant_color
 from themes import themes
 from io import BytesIO
+import numpy as np
+import scipy
+import scipy.misc
+import scipy.cluster
 
 
 __version__ = "v2.0"  # As tagged on github
@@ -214,8 +217,25 @@ class GenerateWallpaper:
         self.display_size = (dw.screenGeometry().width(),dw.screenGeometry().height())
         self.avaliable_size = (dw.availableGeometry().width(),dw.availableGeometry().height())
 
+    def dominant_color(self,image):
+        NUM_CLUSTERS = 5
+
+        image = image.resize((150, 150))      # optional, to reduce time
+        ar = np.asarray(image)
+        shape = ar.shape
+        ar = ar.reshape(np.product(shape[:2]), shape[2]).astype(float)
+
+        codes, dist = scipy.cluster.vq.kmeans(ar, NUM_CLUSTERS)
+
+        vecs, dist = scipy.cluster.vq.vq(ar, codes)         # assign codes
+        counts, bins = np.histogram(vecs, len(codes))    # count occurrences
+
+        index_max = np.argmax(counts)                    # find most frequent
+        color = tuple([int(code) for code in codes[index_max]])
+        return color
+
     def gen_color_layer(self,image):
-        color = dominant_color(image)
+        color = self.dominant_color(image)
         return Image.new("RGB",self.display_size,color)
 
     def gen_blur_layer(self,image):
@@ -277,7 +297,6 @@ class Worker(QtCore.QThread):
             previous_wallpaper = None
             request_interval = config["Settings"].getfloat("request_interval")
 
-            
             set_wallpaper = GenerateWallpaper()
 
             while True:
