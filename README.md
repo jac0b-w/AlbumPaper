@@ -55,7 +55,9 @@ Any contributions are welcomed. If you have any questions just ask in an issue.
 ## System Usage
 
 No CPU or network usage until a new image is generated (song is skipped)
+
 CPU Usage: ~3-6% on my system
+
 Network Usage: <1mbps
 
 ## Examples
