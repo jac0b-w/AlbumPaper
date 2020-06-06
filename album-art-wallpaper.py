@@ -1,16 +1,14 @@
-import os, sys, time, json, glob, shutil, ctypes, spotipy, configparser, requests, logging, numpy, themes
+import os, sys, time, json, glob, shutil, ctypes, spotipy, configparser, requests, logging, numpy, themes, webbrowser
 import logging.handlers, scipy.cluster
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops, ImageFilter
 from io import BytesIO
 
 
-__version__ = "v2.0"  # As tagged on github
+__version__ = "v2.0.1"  # As tagged on github
 
 
 def spotify_auth():
-    scope = "user-read-currently-playing"
-
     CLI_ID = config["Spotify"]["CLIENT_ID"]
     CLI_SEC = config["Spotify"]["CLIENT_SECRET"]
 
@@ -298,8 +296,6 @@ class Worker(QtCore.QThread):
             while True:
                 time.sleep(request_interval)
 
-                
-                
                 image = get_art.get_current_art()
                 set_wallpaper.generate_wallpaper(image)
 
