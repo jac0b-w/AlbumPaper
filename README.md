@@ -48,7 +48,11 @@ Add the API Key to the settings you do __not__ need the shared secret key.
 
 Add your last.fm username to settings.
 
-### System Usage
+## Contibuting
+
+Any contributions are welcomed. If you have any questions just ask in an issue.
+
+## System Usage
 
 No CPU or network usage until a new image is generated (song is skipped)
 CPU Usage: ~3-6% on my system
