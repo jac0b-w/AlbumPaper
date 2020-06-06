@@ -73,6 +73,7 @@ def check_config(config):
     if config["Service"]["service"].lower() == "spotify":
         if len(config["Spotify"]["CLIENT_SECRET"]) != 32 or \
             len(config["Spotify"]["CLIENT_ID"]) != 32:
+            print("INVALID SPOTIFY KEY")
             tray_icon.showMessage('Invalid API Keys','Set valid Spotify API Keys')
             return False
 
@@ -315,6 +316,7 @@ class SettingsWindow(QtWidgets.QDialog):
         self.setFixedSize(540, 0)
         if os.path.exists("assets/settings_icon.png"):
             self.setWindowIcon(QtGui.QIcon("assets/settings_icon.png"))
+        # self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
 
         # spotify section
         self.spotify_radio_button = QtWidgets.QRadioButton(checkable=True)
@@ -417,7 +419,6 @@ class SettingsWindow(QtWidgets.QDialog):
         self.setStyleSheet(themes[config["Settings"]["theme"]]["settings_window"])
 
         self.setLayout(layout)
-        self.setAttribute(QtGui.Qt.WA_DeleteOnClose)   
 
     def save(self):
         if self.spotify_radio_button.isChecked():
@@ -445,14 +446,14 @@ class SettingsWindow(QtWidgets.QDialog):
             with open("config.ini","w") as f:
                 config.write(f)
 
-            set_wallpaper(is_default = True)
             QtWidgets.QApplication.exit(1)
 
     def open_link(self,link):
         QtGui.QDesktopServices.openUrl(QtCore.QUrl(link))
-    
+
     def reject(self):
         QtWidgets.QApplication.exit(1)
+    
 
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, icon, parent=None):
@@ -560,7 +561,8 @@ if __name__ in "__main__":
     app_log.setLevel(logging.ERROR)
     app_log.addHandler(handler)
 
-    while exit_code != 0:
+    while exit_code == 1:
+        exit_code = 0
         try:
             config = configparser.ConfigParser()
             config.read('config.ini')
@@ -571,9 +573,9 @@ if __name__ in "__main__":
                 app = QtWidgets.QApplication.instance()
 
             w = QtWidgets.QWidget()
-            settings_window = SettingsWindow(parent=w)
             tray_icon = SystemTrayIcon(QtGui.QIcon("assets/icon.ico"), w)
             tray_icon.show()
+            settings_window = SettingsWindow()
 
             if not os.path.exists('images'):
                 os.makedirs('images')
@@ -593,9 +595,7 @@ if __name__ in "__main__":
                 exit_code = app.exec_()
 
             else:
-                settings_window = SettingsWindow()
-                settings_window.show()
-
+                settings_window.exec_()
+            
         except:
             app_log.exception("main error")
-            exit_code = 0
