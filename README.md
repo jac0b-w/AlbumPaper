@@ -23,7 +23,7 @@ There is a short initial setup:
 If you are running the source you will also need to:
 
 - Install the dependencies ```pip install -r requirements.txt```
-- Rename ```config_sample.ini``` to ```config.ini```
+- Rename ```_config.ini``` to ```config.ini```
 
 
 ### Getting your API Keys
@@ -32,7 +32,7 @@ Head over to the [Spotify developer dashboard](https://developer.spotify.com/das
 
 <img src = readme_images/image1.png width=300>
 
-Once you are on the app page go to EDIT SETTINGS > Redirect URIs, enter ``` http://localhost:5000/callback/ ``` __exactly__ and make sure to save it.
+Once you are on the app page go to EDIT SETTINGS > Redirect URIs, enter ``` http://localhost:8080/ ``` __exactly__ and make sure to save it.
 
 <img src = readme_images/image2.png width=300>
 
@@ -48,11 +48,20 @@ Add the API Key to the settings you do __not__ need the shared secret key.
 
 Add your last.fm username to settings.
 
-### Other Settings
+## Contibuting
 
-- ```request_interval``` controls how often a request is sent to the API. ```default: 2```
+Any contributions are welcomed. If you have any questions just ask in an issue.
+
+## System Usage
+
+No CPU or network usage until a new image is generated (song is skipped)
+
+CPU Usage: ~3-6% on my system
+
+Network Usage: <1mbps
 
 ## Examples
+<img src = readme_images/example.gif width='100%'>
 
 <img src = readme_images/example2.jpg>
 
