@@ -122,7 +122,7 @@ class CurrentArt():
         try:
             if self.sp_oauth.is_token_expired(token_info=self.token_info):
                 self.token_info = self.sp_oauth.refresh_access_token(self.token_info['refresh_token'])
-                token = token_info['access_token']
+                token = self.token_info['access_token']
                 self.sp = spotipy.Spotify(auth=token)
                 print("TOKEN REFRESHED")
         except:
@@ -592,9 +592,10 @@ if __name__ in "__main__":
                 thread.start()
 
                 exit_code = app.exec_()
+                thread.terminate()
 
             else:
                 settings_window.exec_()
-            
+
         except:
             app_log.exception("main error")
