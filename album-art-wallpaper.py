@@ -1,21 +1,20 @@
-import os, sys, time, json, glob, shutil, webbrowser, subprocess, ctypes, spotipy, urllib.request, configparser, requests, logging
-import logging.handlers
+import os, sys, time, json, glob, shutil, ctypes, spotipy, configparser, requests, logging, numpy, themes
+import logging.handlers, scipy.cluster
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops, ImageFilter
-from themes import themes
 from io import BytesIO
-import numpy as np
-import scipy.cluster
 
 
 __version__ = "v2.0"  # As tagged on github
 
 
 def spotify_auth():
+    scope = "user-read-currently-playing"
+
     CLI_ID = config["Spotify"]["CLIENT_ID"]
     CLI_SEC = config["Spotify"]["CLIENT_SECRET"]
 
-    REDIRECT_URI = "http://localhost:5000/callback/"
+    REDIRECT_URI = "http://localhost:8080/"
     SCOPE = "user-read-currently-playing"
 
     sp_oauth = spotipy.SpotifyOAuth(
@@ -24,33 +23,18 @@ def spotify_auth():
         redirect_uri = REDIRECT_URI,
         scope=SCOPE,
         cache_path=".cache",
-        show_dialog=False
+        show_dialog=True
     )
 
-    cached_token = sp_oauth.get_cached_token()
+    token_info = sp_oauth.get_access_token(as_dict=True)
+    token = token_info["access_token"]
 
-    if not cached_token:
-        tray_icon.showMessage('Sign In','Please sign in')
-        webbrowser.open("http://localhost:5000/")
-        if os.path.exists('spotify-auth.py'):
-            subprocess.run(["python", "spotify-auth.py"], shell=True, timeout=300)  # 5 minute timeout
-        elif os.path.exists('spotify-auth.exe'):
-            subprocess.run(["spotify-auth.exe"], shell=True, timeout=300)  # 5 minute timeout
-        else:
-            tray_icon.showMessage('Missing program','No spotify-auth program')
-            sys.exit()
-    
-    if os.path.exists(".cache"):
-        with open(".cache", "r") as f:
-            data = json.load(f)
-            token = data["access_token"]
-
-        return spotipy.Spotify(auth=token)
-
-    else:
-        tray_icon.showMessage('Authorisation Error','Failed to sign in')
+    try:
+        return spotipy.Spotify(auth=token),sp_oauth,token_info
+    except:
+        print("User token could not be created")
         sys.exit()
-
+    
 
 def set_wallpaper(is_default):
     if is_default:
@@ -115,11 +99,15 @@ class CurrentArt():
             self.art_url = self.spotify_art_url
         
         self.missing_art = Image.open("assets/missing_art.jpg").convert('RGB')
-        self.sp = sp
+        if sp is not None:
+            self.sp,self.sp_oauth,self.token_info = sp,sp_oauth,token_info = spotify_auth()
+        else:
+            self.using_spotify = False
         self.previous_image_url = None
     
     def spotify_art_url(self):
         try:
+            self.refresh_token()
             current = self.sp.currently_playing()
             if current["is_playing"]:
                 return current["item"]["album"]["images"][0]["url"]
@@ -130,7 +118,15 @@ class CurrentArt():
         except (IndexError,TypeError):  # local tracks, no devices playing
             return "default"
 
-    str_bool = lambda self,string: string.lower() == "true"
+    def refresh_token(self):
+        try:
+            if self.sp_oauth.is_token_expired(token_info=self.token_info):
+                self.token_info = self.sp_oauth.refresh_access_token(self.token_info['refresh_token'])
+                token = token_info['access_token']
+                self.sp = spotipy.Spotify(auth=token)
+                print("TOKEN REFRESHED")
+        except:
+            print("FAILED TO REFRESH TOKEN")
 
     def str_bool(self,string):
         return string.lower() == "true"
@@ -220,16 +216,16 @@ class GenerateWallpaper:
         NUM_CLUSTERS = 5
 
         image = image.resize((150, 150))      # optional, to reduce time
-        ar = np.asarray(image)
+        ar = numpy.asarray(image)
         shape = ar.shape
-        ar = ar.reshape(np.product(shape[:2]), shape[2]).astype(float)
+        ar = ar.reshape(numpy.product(shape[:2]), shape[2]).astype(float)
 
         codes, dist = scipy.cluster.vq.kmeans(ar, NUM_CLUSTERS)
 
         vecs, dist = scipy.cluster.vq.vq(ar, codes)         # assign codes
-        counts, bins = np.histogram(vecs, len(codes))    # count occurrences
+        counts, bins = numpy.histogram(vecs, len(codes))    # count occurrences
 
-        index_max = np.argmax(counts)                    # find most frequent
+        index_max = numpy.argmax(counts)                    # find most frequent
         color = tuple([int(code) for code in codes[index_max]])
         return color
 
@@ -288,7 +284,7 @@ class Worker(QtCore.QThread):
     def run(self):
         try:
             if config["Service"]["service"] == "spotify":
-                sp = spotify_auth()
+                sp,sp_oauth,token_info = spotify_auth()
                 get_art = CurrentArt(sp)
             else:
                 get_art = CurrentArt()
@@ -298,8 +294,12 @@ class Worker(QtCore.QThread):
 
             set_wallpaper = GenerateWallpaper()
 
+
             while True:
                 time.sleep(request_interval)
+
+                
+                
                 image = get_art.get_current_art()
                 set_wallpaper.generate_wallpaper(image)
 
@@ -367,7 +367,7 @@ class SettingsWindow(QtWidgets.QDialog):
 
         # other settings
         self.theme_selector = QtWidgets.QComboBox()
-        for theme in themes:
+        for theme in themes.themes:
             self.theme_selector.addItem(theme)
         self.theme_selector.setCurrentIndex(
             self.theme_selector.findText(config["Settings"]["theme"],
@@ -416,7 +416,7 @@ class SettingsWindow(QtWidgets.QDialog):
         layout.addRow("",self.save_button)
 
         # styling
-        self.setStyleSheet(themes[config["Settings"]["theme"]]["settings_window"])
+        self.setStyleSheet(themes.themes[config["Settings"]["theme"]]["settings_window"])
 
         self.setLayout(layout)
 
@@ -451,8 +451,6 @@ class SettingsWindow(QtWidgets.QDialog):
     def open_link(self,link):
         QtGui.QDesktopServices.openUrl(QtCore.QUrl(link))
 
-    def reject(self):
-        QtWidgets.QApplication.exit(1)
     
 
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
@@ -463,7 +461,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.cursor = QtGui.QCursor()
 
         try:
-            self.menu.setStyleSheet(themes[config["Settings"]["theme"]]["menu"])
+            self.menu.setStyleSheet(themes.themes[config["Settings"]["theme"]]["menu"])
         except KeyError:
             pass
 
@@ -572,6 +570,7 @@ if __name__ in "__main__":
             except RuntimeError:
                 app = QtWidgets.QApplication.instance()
 
+            app.setQuitOnLastWindowClosed(False)
             w = QtWidgets.QWidget()
             tray_icon = SystemTrayIcon(QtGui.QIcon("assets/icon.ico"), w)
             tray_icon.show()
