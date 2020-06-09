@@ -5,7 +5,7 @@ from PIL import Image, ImageChops, ImageFilter
 from io import BytesIO
 
 
-__version__ = "v2.0.1"  # As tagged on github
+__version__ = "v2.0.2"  # As tagged on github
 
 
 def spotify_auth():
