@@ -41,6 +41,7 @@ def set_wallpaper(is_default):
         file_name = "images/generated_wallpaper.jpg"
     abs_path = os.path.abspath(file_name)
     ctypes.windll.user32.SystemParametersInfoW(20, 0, abs_path , 0)
+    print("SET NEW WALLPAPER")
 
 
 def set_default_wallpaper():
@@ -95,13 +96,11 @@ class CurrentArt():
             self.art_url = self.lastfm_art_url
         else:
             self.art_url = self.spotify_art_url
+            self.sp,self.sp_oauth,self.token_info = sp,sp_oauth,token_info = spotify_auth()
         
         self.missing_art = Image.open("assets/missing_art.jpg").convert('RGB')
-        if sp is not None:
-            self.sp,self.sp_oauth,self.token_info = sp,sp_oauth,token_info = spotify_auth()
-        else:
-            self.using_spotify = False
         self.previous_image_url = None
+        self.previously_generated_url = None
     
     def spotify_art_url(self):
         try:
@@ -112,8 +111,8 @@ class CurrentArt():
             else:
                 return "default"
         except spotipy.client.SpotifyException: # Token expired
-            spotify_auth()
-        except (IndexError,TypeError):  # local tracks, no devices playing
+            self.refresh_token()
+        except:  # local tracks, no devices playing
             return "default"
 
     def refresh_token(self):
@@ -171,30 +170,37 @@ class CurrentArt():
         return Image.open(BytesIO(response.content)).convert("RGB")
 
     '''
-    3 possible inputs:
+    3 possible inputs (from self.art_url):
     url string   | Set wallpaper to this image (if it's not lastfm missing image)
     "default"    | Set default wallpaper
     None         | Do not change wallpaper
 
-    3 Possible outputs
-    Image.Image  | Set wallpaper to this image
+    4 Possible outputs
+    Image.Image  | Generate and set wallpaper to this image
     "default"    | Set default wallpaper
+    "generated"  | Set wallpaper to last generated wallpaper
     None         | Do not change wallpaper
     '''
-
+    
     def get_current_art(self):
         image_url = self.art_url()
-        if (image_url is not None) and (image_url != self.previous_image_url):
-            self.previous_image_url = image_url
-            if image_url == "default":
-                return "default"
+        if (image_url == self.previous_image_url):  # Image hasn't changed
+            return None
+
+        self.previous_image_url = image_url
+
+        if image_url in ("default",None):
+            return image_url
+        else:   # setting a new non-default wallpaper
+            if (self.previously_generated_url == image_url):  # wallpaper has already been generated
+                return "generated"
+            
             art = self.download_image(image_url)
             if ImageChops.difference(art, self.missing_art).getbbox() is None:
                 return "default"
             else:
+                self.previously_generated_url = image_url
                 return art
-        else:
-            return None
 
 
 class GenerateWallpaper:
@@ -274,6 +280,8 @@ class GenerateWallpaper:
             set_wallpaper(False)
         elif image == "default":
             set_wallpaper(True)
+        elif image == "generated":
+            set_wallpaper(False)
 
 
 class Worker(QtCore.QThread):
