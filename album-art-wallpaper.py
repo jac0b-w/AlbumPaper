@@ -1,4 +1,4 @@
-import os, sys, time, json, glob, shutil, ctypes, spotipy, configparser, requests, logging, numpy, themes, webbrowser
+import os, sys, time, json, glob, shutil, ctypes, spotipy, configparser, requests, logging, numpy, webbrowser, ast
 import logging.handlers, scipy.cluster
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops, ImageFilter
@@ -371,12 +371,16 @@ class SettingsWindow(QtWidgets.QDialog):
 
         # other settings
         self.theme_selector = QtWidgets.QComboBox()
-        for theme in themes.themes:
+        themes = [f[9:-3] for f in glob.glob("./themes/*.py")]
+        for theme in themes:
             self.theme_selector.addItem(theme)
         self.theme_selector.setCurrentIndex(
             self.theme_selector.findText(config["Settings"]["theme"],
             QtCore.Qt.MatchFixedString)
         )
+
+        self.edit_theme_button = QtWidgets.QPushButton("Edit Themes")
+        self.edit_theme_button.clicked.connect(self.edit_themes)
 
         self.request_interval = QtWidgets.QDoubleSpinBox()
         self.request_interval.setRange(0.0,60.0)
@@ -385,6 +389,7 @@ class SettingsWindow(QtWidgets.QDialog):
         
         self.save_button = QtWidgets.QPushButton("Save")
         self.save_button.clicked.connect(self.save)
+        self.save_button.setDefault(True)
         
         # layout
         layout = QtWidgets.QFormLayout()
@@ -416,11 +421,15 @@ class SettingsWindow(QtWidgets.QDialog):
 
         # other settings
         layout.addRow("Theme",self.theme_selector)
+        layout.addRow("",self.edit_theme_button)
         layout.addRow("Request Interval (s)",self.request_interval)
         layout.addRow("",self.save_button)
 
         # styling
-        self.setStyleSheet(themes.themes[config["Settings"]["theme"]]["settings_window"])
+        try:
+            self.setStyleSheet(current_theme["settings_window"])
+        except KeyError:
+            pass
 
         self.setLayout(layout)
 
@@ -452,6 +461,13 @@ class SettingsWindow(QtWidgets.QDialog):
 
             QtWidgets.QApplication.exit(1)
 
+    def edit_themes(self):
+        try:
+            os.startfile("themes")
+        except FileNotFoundError:
+            os.makedirs("themes")
+            os.startfile("themes")
+
     def open_link(self,link):
         QtGui.QDesktopServices.openUrl(QtCore.QUrl(link))
 
@@ -465,7 +481,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.cursor = QtGui.QCursor()
 
         try:
-            self.menu.setStyleSheet(themes.themes[config["Settings"]["theme"]]["menu"])
+            self.menu.setStyleSheet(current_theme["menu"])
         except KeyError:
             pass
 
@@ -568,6 +584,12 @@ if __name__ in "__main__":
         try:
             config = configparser.ConfigParser()
             config.read('config.ini')
+
+            try:
+                with open(f"themes/{config['Settings']['theme']}.py") as f:
+                    current_theme = ast.literal_eval(f.read())
+            except:
+                current_theme = {"settings_window":"","menu":""}
 
             try:
                 app = QtWidgets.QApplication(sys.argv)
