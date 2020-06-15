@@ -5,7 +5,7 @@ from PIL import Image, ImageChops, ImageFilter
 from io import BytesIO
 
 
-__version__ = "v2.0.2"  # As tagged on github
+__version__ = "v2.1"  # As tagged on github
 
 
 def spotify_auth():
@@ -300,7 +300,6 @@ class Worker(QtCore.QThread):
 
             set_wallpaper = GenerateWallpaper()
 
-
             while True:
                 time.sleep(request_interval)
 
@@ -320,12 +319,19 @@ class SettingsWindow(QtWidgets.QDialog):
         self.setFixedSize(540, 0)
         if os.path.exists("assets/settings_icon.png"):
             self.setWindowIcon(QtGui.QIcon("assets/settings_icon.png"))
-        # self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
-
-        # spotify section
+        
+        # radio buttons
         self.spotify_radio_button = QtWidgets.QRadioButton(checkable=True)
         self.spotify_radio_button.setChecked(using_spotify)
 
+        self.lastfm_radio_button = QtWidgets.QRadioButton(checkable=True)
+        self.lastfm_radio_button.setChecked(not using_spotify)
+        
+        self.radio_buttons = QtWidgets.QButtonGroup()
+        self.radio_buttons.addButton(self.spotify_radio_button)
+        self.radio_buttons.addButton(self.lastfm_radio_button)
+
+        # spotify section
         self.spotify_client_id = QtWidgets.QLineEdit()
         self.spotify_client_secret = QtWidgets.QLineEdit()
         self.spotify_client_id.setPlaceholderText("Client ID")
@@ -336,9 +342,6 @@ class SettingsWindow(QtWidgets.QDialog):
         self.spotify_client_secret.setText(config["Spotify"]["CLIENT_SECRET"])
 
         # last.fm section
-        self.lastfm_radio_button = QtWidgets.QRadioButton(checkable=True)
-        self.lastfm_radio_button.setChecked(not using_spotify)
-
         self.lastfm_username = QtWidgets.QLineEdit()
         self.lastfm_api_key = QtWidgets.QLineEdit()
         self.lastfm_username.setPlaceholderText("Username")
@@ -346,11 +349,6 @@ class SettingsWindow(QtWidgets.QDialog):
         self.lastfm_api_key.setMaxLength(32)
         self.lastfm_username.setText(config["Last.fm"]["username"])
         self.lastfm_api_key.setText(config["Last.fm"]["api_key"])
-
-        # radio buttons group
-        self.radio_buttons = QtWidgets.QButtonGroup()
-        self.radio_buttons.addButton(self.spotify_radio_button)
-        self.radio_buttons.addButton(self.lastfm_radio_button)
 
         # layer settings
         self.front_image_checkbox = QtWidgets.QCheckBox()
@@ -369,7 +367,7 @@ class SettingsWindow(QtWidgets.QDialog):
         self.blur_image_radius.setSingleStep(0.5)
         self.blur_image_radius.setValue(config["Settings"].getfloat("blur_image_radius"))
 
-        # other settings
+        # theme selection
         self.theme_selector = QtWidgets.QComboBox()
         themes = [f[9:-3] for f in glob.glob("./themes/*.py")]
         for theme in themes:
@@ -386,7 +384,7 @@ class SettingsWindow(QtWidgets.QDialog):
         self.request_interval.setRange(0.0,60.0)
         self.request_interval.setSingleStep(0.5)
         self.request_interval.setValue(config["Settings"].getfloat("request_interval"))
-        
+    
         self.save_button = QtWidgets.QPushButton("Save")
         self.save_button.clicked.connect(self.save)
         self.save_button.setDefault(True)
