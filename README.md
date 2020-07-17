@@ -9,9 +9,9 @@ An internet connection is required.
 
 ## Getting Started
 
-[Download exe](https://github.com/jac0b-w/album-art-wallpaper/releases/latest)
+[Download installer for windows](https://github.com/jac0b-w/album-art-wallpaper/releases/latest)
 
-[Download source](https://github.com/jac0b-w/album-art-wallpaper/archive/master.zip)
+[Download source code](https://github.com/jac0b-w/album-art-wallpaper/archive/master.zip)
 
 There is a short initial setup:
 
