@@ -11,8 +11,6 @@ An internet connection is required.
 
 [Download installer for windows](https://github.com/jac0b-w/album-art-wallpaper/releases/latest)
 
-[Download source code](https://github.com/jac0b-w/album-art-wallpaper/archive/master.zip)
-
 There is a short initial setup:
 
 1. Start the app. A music note icon will appear in the system tray
@@ -20,7 +18,7 @@ There is a short initial setup:
 3. If you are setting new keys for the first time save and start the app again
 4. Start playing music and your desktop wallpaper will change, you can right click the app in the system tray for options.
 
-If you are running the source you will also need to:
+If you are running the source you will also need to (this is not required if you are using the installer):
 
 - Install the dependencies ```pip install -r requirements.txt```
 - Rename ```_config.ini``` to ```config.ini```
