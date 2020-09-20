@@ -3,6 +3,7 @@
 This is a system tray app for windows that will change your desktop wallpaper based on the track you are listening to.
 Works with Spotify or Last.fm.
 
+<img src = readme_images/example.gif width='100%'>
 
 As the artwork provided is only 640px if you are using a higher resolution than 1080p the artwork will be smaller. However there is an option to resize the image in the settings.
 An internet connection is required.
@@ -59,7 +60,6 @@ CPU Usage: ~3-6% on my system
 Network Usage: <1mbps
 
 ## Examples
-<img src = readme_images/example.gif width='100%'>
 
 <img src = readme_images/example2.jpg>
 
