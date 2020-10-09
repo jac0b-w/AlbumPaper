@@ -96,7 +96,7 @@ class CurrentArt():
             self.art_url = self.lastfm_art_url
         else:
             self.art_url = self.spotify_art_url
-            self.sp,self.sp_oauth,self.token_info = sp,sp_oauth,token_info = spotify_auth()
+            self.sp,self.sp_oauth,self.token_info = spotify_auth()
         
         self.missing_art = Image.open("assets/missing_art.jpg").convert('RGB')
         self.previous_image_url = None
@@ -128,7 +128,7 @@ class CurrentArt():
     def str_bool(self,string):
         return string.lower() == "true"
 
-    def lastfm_request(payload):
+    def lastfm_request(self):
         try:
             # define headers and URL
             headers = {'user-agent': "album-art-wallpaper"}
@@ -311,10 +311,10 @@ class Worker(QtCore.QThread):
 
 
 class SettingsWindow(QtWidgets.QDialog):
-    def __init__(self,parent=None):
+    def __init__(self):
         using_spotify = (config["Service"]["service"].lower() == "spotify")
 
-        super(SettingsWindow,self).__init__(parent)
+        super(SettingsWindow,self).__init__()
         self.setWindowTitle("Settings")
         self.setFixedSize(540, 0)
         if os.path.exists("assets/settings_icon.png"):
@@ -563,19 +563,22 @@ exit_code = 0, quit app
 '''
 
 if __name__ in "__main__":
-    exit_code = 1
+    try:
+        exit_code = 1
 
-    # logging errors
-    handler = logging.handlers.RotatingFileHandler(
-        "errors.log",
-        maxBytes=500*1024,  # 500 kB
-        backupCount=1,
-    )
-    handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
-    handler.setLevel(logging.ERROR)
-    app_log = logging.getLogger("root")
-    app_log.setLevel(logging.ERROR)
-    app_log.addHandler(handler)
+        # logging errors
+        handler = logging.handlers.RotatingFileHandler(
+            "errors.log",
+            maxBytes=500*1024,  # 500 kB
+            backupCount=1,
+        )
+        handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+        handler.setLevel(logging.ERROR)
+        app_log = logging.getLogger("root")
+        app_log.setLevel(logging.ERROR)
+        app_log.addHandler(handler)
+    except:
+        app_log.exception("Startup error")
 
     while exit_code == 1:
         exit_code = 0
