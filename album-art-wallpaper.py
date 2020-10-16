@@ -1,16 +1,27 @@
-import os, sys, time, json, glob, shutil, ctypes, spotipy, configparser, requests, logging, numpy, webbrowser, ast
-import logging.handlers, scipy.cluster
+import os, sys, time, json, glob, shutil, ctypes, spotipy, configparser
+import requests, logging, numpy, ast, collections
+import logging.handlers, scipy.cluster, sklearn.cluster
 from PySide2 import QtWidgets, QtGui, QtCore
-from PIL import Image, ImageChops, ImageFilter
+from PIL import Image, ImageChops, ImageFilter, ImageDraw
 from io import BytesIO
 
 
-__version__ = "v2.1"  # As tagged on github
+__version__ = "v3.0"  # As tagged on github
+
+
+def timer(func):
+    def wrapper(*args,**kwargs):
+        start = time.time()
+        return_values = func(*args,**kwargs)
+        if time.time() - start > 0.005:
+            print(f"function {func.__name__} took {time.time() - start} seconds")
+        return return_values
+    return wrapper
 
 
 def spotify_auth():
-    CLI_ID = config["Spotify"]["CLIENT_ID"]
-    CLI_SEC = config["Spotify"]["CLIENT_SECRET"]
+    CLI_ID = config["Spotify"]["client_id"]
+    CLI_SEC = config["Spotify"]["client_secret"]
 
     REDIRECT_URI = "http://localhost:8080/"
     SCOPE = "user-read-currently-playing"
@@ -54,8 +65,8 @@ def set_default_wallpaper():
 def check_config(config):
     # invalid spotify keys
     if config["Service"]["service"].lower() == "spotify":
-        if len(config["Spotify"]["CLIENT_SECRET"]) != 32 or \
-            len(config["Spotify"]["CLIENT_ID"]) != 32:
+        if len(config["Spotify"]["client_secret"]) != 32 or \
+            len(config["Spotify"]["client_id"]) != 32:
             print("INVALID SPOTIFY KEY")
             tray_icon.showMessage('Invalid API Keys','Set valid Spotify API Keys')
             return False
@@ -73,21 +84,34 @@ def check_config(config):
 
     return True  # valid config file
 
-def check_file(path,quit_if_missing=True):
-    if not os.path.exists(path):
-        tray_icon.showMessage("Missing file",f"Can't find {path}")
-        app_log.error(f"Missing file: {path}")
-        if quit_if_missing:
-            sys.exit()
+
+def check_file(*paths,quit_if_missing=True):
+    for path in paths:
+        if not os.path.exists(path):
+            tray_icon.showMessage("Missing file",f"Can't find {path}")
+            app_log.error(f"Missing file: {path}")
+            if quit_if_missing:
+                sys.exit()
 
 
-class Timer:
+class ConfigManager:
     def __init__(self):
-        self.time = time.time()
+        self.services = configparser.ConfigParser()
+        self.services.read('services.ini')
+        self.settings = configparser.ConfigParser()
+        self.settings.read('settings.ini')
 
-    def ping(self,name):
-        print(f"{name} took {time.time()-self.time}")
-        self.time = time.time()
+    def __getitem__(self,key):
+        if key in ("Service","Spotify","Last.fm"):
+            return self.services[key]
+        else:
+            return self.settings[key]
+
+    def save(self):
+        with open("settings.ini","w") as f:
+            self.settings.write(f)
+        with open("services.ini","w") as f:
+            self.services.write(f)
 
 
 class CurrentArt():
@@ -96,7 +120,7 @@ class CurrentArt():
             self.art_url = self.lastfm_art_url
         else:
             self.art_url = self.spotify_art_url
-            self.sp,self.sp_oauth,self.token_info = spotify_auth()
+            self.sp, self.sp_oauth, self.token_info = spotify_auth()
         
         self.missing_art = Image.open("assets/missing_art.jpg").convert('RGB')
         self.previous_image_url = None
@@ -124,9 +148,6 @@ class CurrentArt():
                 print("TOKEN REFRESHED")
         except:
             print("FAILED TO REFRESH TOKEN")
-
-    def str_bool(self,string):
-        return string.lower() == "true"
 
     def lastfm_request(self):
         try:
@@ -157,7 +178,7 @@ class CurrentArt():
             # occurs with poor/no connection
             return "default"
         try:
-            if self.str_bool(current["@attr"]["nowplaying"]):
+            if current["@attr"]["nowplaying"].lower() == "true":
                 return current["image"][0]["#text"].replace("34s","600x600")
             else:   # when track is not playing
                 return "default"
@@ -205,48 +226,143 @@ class CurrentArt():
 
 class GenerateWallpaper:
     def __init__(self):
-        self.front_image_size = config["Settings"].getint("front_image_size")
-        self.blur_image_size = config["Settings"].getint("blur_image_size")
-        self.blur_radius = config["Settings"].getfloat("blur_image_radius")
+        self.foreground_size = config["Settings"].getint("foreground_size")
+        background_type = config["Settings"].get("background_type")
+        self.gen_background = {
+            "Solid":self.color_background,
+            "Gradient":self.gradient_background,
+            "Art":self.art_background,
+            "Wallpaper":self.wallpaper_background
+        }[background_type]
 
-        self.front_image_enabled = config["Settings"].getboolean("front_image_enabled")
-        self.blur_image_enabled = config["Settings"].getboolean("blur_image_enabled")
+        self.blur_enabled = config["Settings"].getboolean("blur_enabled")
+        self.blur_strength = config["Settings"].getfloat("blur_strength")
+
+        self.foreground_enabled = config["Settings"].getboolean("foreground_enabled")
         
-        dw = app.desktop()  # dw = QDesktopWidget() also works if app is created
+        dw = app.desktop()
         self.display_size = (dw.screenGeometry().width(),dw.screenGeometry().height())
         self.avaliable_size = (dw.availableGeometry().width(),dw.availableGeometry().height())
 
-    def dominant_color(self,image):
-        NUM_CLUSTERS = 5
+
+    @timer
+    def dominant_colors(self,image): 
+        """
+        Input: PIL image
+        Output: A list of 10 colors in the image from most dominant to least dominant
+        Adaptation of https://stackoverflow.com/a/3244061/7274182
+        """
+        num_clusters = 10
 
         image = image.resize((150, 150))      # optional, to reduce time
         ar = numpy.asarray(image)
         shape = ar.shape
         ar = ar.reshape(numpy.product(shape[:2]), shape[2]).astype(float)
 
-        codes, dist = scipy.cluster.vq.kmeans(ar, NUM_CLUSTERS)
+        kmeans = sklearn.cluster.KMeans(
+            n_clusters=num_clusters,
+            init="k-means++",
+            max_iter=20,
+            random_state=1000
+        ).fit(ar)
+        codes = kmeans.cluster_centers_
+        dist = kmeans.labels_
 
         vecs, dist = scipy.cluster.vq.vq(ar, codes)         # assign codes
         counts, bins = numpy.histogram(vecs, len(codes))    # count occurrences
 
-        index_max = numpy.argmax(counts)                    # find most frequent
-        color = tuple([int(code) for code in codes[index_max]])
-        return color
+        Color = collections.namedtuple('Color',['r','g','b'])
+        colors = []
+        for index in numpy.argsort(counts)[::-1]:
+            color_tuple = tuple([int(code) for code in codes[index]])
+            colors.append(Color(*color_tuple))
+        return colors                    # returns colors in order of dominance
 
-    def gen_color_layer(self,image):
-        color = self.dominant_color(image)
+
+    @staticmethod
+    def color_difference(c1, c2):
+        """
+        Input: RGB named tuples
+        Output: An aproximation of percieved color difference of two colors
+        https://www.compuphase.com/cmetric.htm
+        """
+        r = (c1.r + c2.r)/2
+        delta_r = c1.r - c2.r
+        delta_g = c1.g - c2.g
+        delta_b = c1.b - c2.b
+        return ((2+r/256)*delta_r**2 + 4*delta_g**2 + (2 + (255-r)/256)*delta_b**2)**0.5
+
+    @staticmethod
+    def color_luminosity(color):
+        min_rgb = min(color)/255
+        max_rgb = max(color)/255
+        return (max_rgb+min_rgb)/2
+
+    def color_saturation(self,color): # https://medium.com/@donatbalipapp/colours-maths-90346fb5abda
+        """
+        Input: RGB named tuple
+        Output: Saturation of the color 0-1
+        """
+        min_rgb = min(color)/255
+        max_rgb = max(color)/255
+        luminosity = self.color_luminosity(color)
+        if luminosity == 0:
+            return 0
+        else:
+            return (max_rgb-min_rgb)/(1-abs(2*luminosity - 1))
+
+    @timer
+    def gradient_background(self, image): # https://gist.github.com/weihanglo/1e754ec47fdd683a42fdf6a272904535
+        def interpolate(f_co, t_co, interval):
+            det_co =[(t - f) / interval for f , t in zip(f_co, t_co)]
+            for i in range(interval):
+                yield [round(f + det * i) for f, det in zip(f_co, det_co)]
+
+        gradient = Image.new("RGB",self.display_size,color=0)
+        draw = ImageDraw.Draw(gradient)
+        dominant_colors = self.dominant_colors(image)
+
+        """
+        Determine best colours for the gradient
+        Firstly get the 7 most dominant colours and pick the most saturated
+        Pair the most saturated colour with the colour that has the largest percieved difference
+        """
+
+        saturations = {color:self.color_saturation(color) for color in dominant_colors[:7]}
+        sorted_saturations = sorted(saturations.items(), key=lambda x: x[1], reverse=True)  # (((255,0,0),1),((100,0,0),0.5),...)
+
+        color_differences = {
+            (sorted_saturations[0][0],color):self.color_difference(sorted_saturations[0][0],color) \
+            for color,_ in sorted_saturations[1:]
+        }
+        sorted_color_differences = sorted(color_differences.items(), key=lambda x: x[1], reverse=True)
+
+        gradient_pair = sorted_color_differences[0][0]
+
+        # Draw the gradient
+        for i, color in enumerate(interpolate(*gradient_pair, self.avaliable_size[0]*2)):
+            draw.line([(i, 0), (0, i)], tuple(color), width=1)
+
+        return gradient
+
+    @timer
+    def color_background(self,image):
+        color = self.dominant_colors(image)[0]
         return Image.new("RGB",self.display_size,color)
 
-    def gen_blur_layer(self,image):
-        if self.blur_image_enabled:
-            art_resized = image.resize([self.blur_image_size]*2,1)
-            return art_resized.filter(ImageFilter.GaussianBlur(self.blur_radius))
-        else:
-            return None
+    @timer
+    def art_background(self,image):
+        max_dim = max(self.avaliable_size)
+        art_resized = image.resize([max_dim]*2,1)
+        return art_resized
 
-    def gen_front_layer(self,image):
-        if self.front_image_enabled:
-            return image.resize([self.front_image_size]*2,1)
+    @timer
+    def wallpaper_background(self,*_):
+        return Image.open("images/default_wallpaper.jpg")
+
+    def gen_foreground(self,image):
+        if self.foreground_enabled:
+            return image.resize([self.foreground_size]*2,1)
         else:
             return None
 
@@ -257,26 +373,27 @@ class GenerateWallpaper:
             time.sleep(0.1)
             self.save_image(path,image)
 
-    def paste_images(self,base,*layers):
+    def paste_images(self,*layers):
+        base = Image.new("RGB",self.display_size)
         for layer in layers:
-            if layer is None:
-                continue
-            x = int((self.avaliable_size[0] - layer.size[0])/2)
-            y = int((self.avaliable_size[1] - layer.size[1])/2)
-            base.paste(layer,(x,y))
+            if layer is not None:
+                x = int((self.avaliable_size[0] - layer.size[0])/2)
+                y = int((self.avaliable_size[1] - layer.size[1])/2)
+                base.paste(layer,(x,y))
         self.save_image("images/generated_wallpaper.jpg",base)
 
+    @timer
     def generate_wallpaper(self,image):
         if isinstance(image,Image.Image):
-            timer = Timer()
-            color_layer = self.gen_color_layer(image)
-            timer.ping("color layer")
-            blur_layer = self.gen_blur_layer(image)
-            timer.ping("blur layer")
-            front_layer = self.gen_front_layer(image)
-            timer.ping("front layer")
-            self.paste_images(color_layer, blur_layer, front_layer)
-            timer.ping("paste images")
+            background = self.gen_background(image)
+            if self.blur_enabled:
+                background = background.filter(ImageFilter.GaussianBlur(self.blur_strength))
+
+            self.paste_images(
+                background,
+                self.gen_foreground(image),
+            )
+            
             set_wallpaper(False)
         elif image == "default":
             set_wallpaper(True)
@@ -306,31 +423,53 @@ class Worker(QtCore.QThread):
                 image = get_art.get_current_art()
                 set_wallpaper.generate_wallpaper(image)
 
-        except:
+        except Exception as e:
             app_log.exception("worker error")
+            if __debug__:
+                raise(e)
+
 
 
 class SettingsWindow(QtWidgets.QDialog):
     def __init__(self):
-        using_spotify = (config["Service"]["service"].lower() == "spotify")
-
         super(SettingsWindow,self).__init__()
         self.setWindowTitle("Settings")
-        self.setFixedSize(540, 0)
+        self.setFixedSize(470, 0)
         if os.path.exists("assets/settings_icon.png"):
             self.setWindowIcon(QtGui.QIcon("assets/settings_icon.png"))
         
-        # radio buttons
-        self.spotify_radio_button = QtWidgets.QRadioButton(checkable=True)
-        self.spotify_radio_button.setChecked(using_spotify)
-
-        self.lastfm_radio_button = QtWidgets.QRadioButton(checkable=True)
-        self.lastfm_radio_button.setChecked(not using_spotify)
+        self.main_layout = QtWidgets.QFormLayout()
+        self.init_service_section()
+        self.main_layout.addRow(QtWidgets.QLabel(""))
+        self.init_themes_section()
+        self.main_layout.addRow(QtWidgets.QLabel(""))
+        self.init_layer_section()
+        self.main_layout.addRow(QtWidgets.QLabel(""))
         
-        self.radio_buttons = QtWidgets.QButtonGroup()
-        self.radio_buttons.addButton(self.spotify_radio_button)
-        self.radio_buttons.addButton(self.lastfm_radio_button)
+        # Save button
+        self.save_button = QtWidgets.QPushButton("Save")
+        self.save_button.clicked.connect(self.save)
+        self.save_button.setDefault(True)
+        self.main_layout.addRow("",self.save_button)
 
+        try:
+            self.setStyleSheet(current_theme["settings_window"])
+        except KeyError:
+            pass
+
+        self.setLayout(self.main_layout)
+
+    def init_service_section(self): # https://stackoverflow.com/questions/11826036/pyside-show-hide-layouts
+        self.service_combo = QtWidgets.QComboBox()
+        self.service_combo.addItems(["Spotify (recommended)","Last.fm"])
+        self.service_combo.currentIndexChanged.connect(
+            lambda index: self.api_keys_stacked.setCurrentIndex(index))
+        index = {"spotify":0,"last.fm":1}[config["Service"]["service"]]
+        self.main_layout.addRow("Service",self.service_combo)
+        
+        self.api_keys_stacked = QtWidgets.QStackedWidget()
+        self.api_keys_stacked.setCurrentIndex(index)
+        self.main_layout.addRow(self.api_keys_stacked)
         # spotify section
         self.spotify_client_id = QtWidgets.QLineEdit()
         self.spotify_client_secret = QtWidgets.QLineEdit()
@@ -338,8 +477,15 @@ class SettingsWindow(QtWidgets.QDialog):
         self.spotify_client_secret.setPlaceholderText("Client Secret")
         self.spotify_client_id.setMaxLength(32)
         self.spotify_client_secret.setMaxLength(32)
-        self.spotify_client_id.setText(config["Spotify"]["CLIENT_ID"])
-        self.spotify_client_secret.setText(config["Spotify"]["CLIENT_SECRET"])
+        self.spotify_client_id.setText(config["Spotify"]["client_id"])
+        self.spotify_client_secret.setText(config["Spotify"]["client_secret"])
+
+        widget = QtWidgets.QWidget()
+        self.api_keys_stacked.addWidget(widget)
+        layout = QtWidgets.QFormLayout()
+        widget.setLayout(layout)
+        layout.addRow("Client ID",self.spotify_client_id)
+        layout.addRow("Client Secret",self.spotify_client_secret)
 
         # last.fm section
         self.lastfm_username = QtWidgets.QLineEdit()
@@ -350,23 +496,54 @@ class SettingsWindow(QtWidgets.QDialog):
         self.lastfm_username.setText(config["Last.fm"]["username"])
         self.lastfm_api_key.setText(config["Last.fm"]["api_key"])
 
-        # layer settings
-        self.front_image_checkbox = QtWidgets.QCheckBox()
-        self.front_image_checkbox.setChecked(config["Settings"].getboolean("front_image_enabled"))
-        self.front_image_size = QtWidgets.QSpinBox()
-        self.front_image_size.setRange(1,10_000)
-        self.front_image_size.setValue(config["Settings"].getint("front_image_size"))
+        widget = QtWidgets.QWidget()
+        self.api_keys_stacked.addWidget(widget)
+        layout = QtWidgets.QFormLayout()
+        widget.setLayout(layout)
+        layout.addRow("Username",self.lastfm_username)
+        layout.addRow("API Key",self.lastfm_api_key)
 
-        self.blur_image_checkbox = QtWidgets.QCheckBox()
-        self.blur_image_checkbox.setChecked(config["Settings"].getboolean("blur_image_enabled"))
-        self.blur_image_size = QtWidgets.QSpinBox()
-        self.blur_image_size.setRange(1,10_000)
-        self.blur_image_size.setValue(config["Settings"].getint("blur_image_size"))
-        self.blur_image_radius = QtWidgets.QDoubleSpinBox()
-        self.blur_image_radius.setRange(0.0,100.0)
-        self.blur_image_radius.setSingleStep(0.5)
-        self.blur_image_radius.setValue(config["Settings"].getfloat("blur_image_radius"))
+        self.service_combo.setCurrentIndex(index)
+        help_link = QtWidgets.QLabel(
+            f'<a href="https://github.com/jac0b-w/album-art-wallpaper#getting-started">'\
+            'Where do I find API keys?</a>')
+        help_link.linkActivated.connect(
+            lambda link: QtGui.QDesktopServices.openUrl(QtCore.QUrl(link)))
+        self.main_layout.addRow(help_link)
 
+    def init_layer_section(self):
+        self.foreground_checkbox = QtWidgets.QCheckBox()
+        self.main_layout.addRow("Foreground Art",self.foreground_checkbox)
+        self.foreground_checkbox.setChecked(config["Settings"].getboolean("foreground_enabled"))
+        
+        self.foreground_size = QtWidgets.QSpinBox()
+        self.foreground_size.setRange(1,10_000)
+        self.main_layout.addRow("Art Size",self.foreground_size)
+        self.foreground_size.setValue(config["Settings"].getint("foreground_size"))
+        self.foreground_size.setEnabled(self.foreground_checkbox.isChecked())
+        self.foreground_checkbox.stateChanged.connect(
+            lambda checked: self.foreground_size.setEnabled(checked))
+
+        self.background_combo = QtWidgets.QComboBox()
+        self.background_combo.addItems(["Solid","Gradient","Art", "Wallpaper"])
+        self.main_layout.addRow("Background",self.background_combo)
+        self.background_combo.setCurrentText(config["Settings"].get("background_type"))
+        self.background_combo.currentIndexChanged.connect(self.background_setEnabled_check)
+
+        self.blur_checkbox = QtWidgets.QCheckBox()
+        self.main_layout.addRow("Background Blur",self.blur_checkbox)
+        self.blur_checkbox.setChecked(config["Settings"].getboolean("blur_enabled"))
+        self.blur_checkbox.stateChanged.connect(self.background_setEnabled_check)
+
+        self.blur_strength = QtWidgets.QDoubleSpinBox()
+        self.blur_strength.setRange(0.0,100.0)
+        self.blur_strength.setSingleStep(0.5)
+        self.main_layout.addRow("Blur Strength",self.blur_strength)
+        self.blur_strength.setValue(config["Settings"].getfloat("blur_strength"))
+
+        self.background_setEnabled_check()
+
+    def init_themes_section(self):
         # theme selection
         self.theme_selector = QtWidgets.QComboBox()
         themes = [f[9:-3] for f in glob.glob("./themes/*.py")]
@@ -376,88 +553,35 @@ class SettingsWindow(QtWidgets.QDialog):
             self.theme_selector.findText(config["Settings"]["theme"],
             QtCore.Qt.MatchFixedString)
         )
+        self.main_layout.addRow("Theme",self.theme_selector)
 
         self.edit_theme_button = QtWidgets.QPushButton("Edit Themes")
         self.edit_theme_button.clicked.connect(self.edit_themes)
-
-        self.request_interval = QtWidgets.QDoubleSpinBox()
-        self.request_interval.setRange(0.0,60.0)
-        self.request_interval.setSingleStep(0.5)
-        self.request_interval.setValue(config["Settings"].getfloat("request_interval"))
-    
-        self.save_button = QtWidgets.QPushButton("Save")
-        self.save_button.clicked.connect(self.save)
-        self.save_button.setDefault(True)
-        
-        # layout
-        layout = QtWidgets.QFormLayout()
-
-        help_link = QtWidgets.QLabel(f'<a href="https://github.com/jac0b-w/album-art-wallpaper#getting-started">Where do I find these?</a>')
-        help_link.linkActivated.connect(self.open_link)
-        layout.addRow(help_link)
-
-        # Spotify section
-        layout.addRow("Spotify (recommended)",self.spotify_radio_button)
-        layout.addRow("Client ID",self.spotify_client_id)
-        layout.addRow("Client Secret",self.spotify_client_secret)
-
-        layout.addRow(QtWidgets.QLabel(""))
-        # Last.fm section
-        layout.addRow("Last.fm",self.lastfm_radio_button)
-        layout.addRow("Username",self.lastfm_username)
-        layout.addRow("API Key",self.lastfm_api_key)
-
-        layout.addRow(QtWidgets.QLabel(""))
-        # layer settings
-        layout.addRow("Art Image",self.front_image_checkbox)
-        layout.addRow("Art Image Size (px)",self.front_image_size)
-        layout.addRow("Blur Image",self.blur_image_checkbox)
-        layout.addRow("Blur Image Size (px)",self.blur_image_size)
-        layout.addRow("Blur Strength",self.blur_image_radius)
-
-        layout.addRow(QtWidgets.QLabel(""))
-
-        # other settings
-        layout.addRow("Theme",self.theme_selector)
-        layout.addRow("",self.edit_theme_button)
-        layout.addRow("Request Interval (s)",self.request_interval)
-        layout.addRow("",self.save_button)
-
-        # styling
-        try:
-            self.setStyleSheet(current_theme["settings_window"])
-        except KeyError:
-            pass
-
-        self.setLayout(layout)
+        self.main_layout.addRow("",self.edit_theme_button)
 
     def save(self):
-        if self.spotify_radio_button.isChecked():
-            config["Service"]["service"] = "spotify"
-        else:
-            config["Service"]["service"] = "last.fm"
+        service = ["spotify","last.fm"][self.service_combo.currentIndex()]
+        config["Service"]["service"] = service
 
-        config["Spotify"]["CLIENT_ID"] = self.spotify_client_id.text()
-        config["Spotify"]["CLIENT_SECRET"] = self.spotify_client_secret.text()
+        config["Spotify"]["client_id"] = self.spotify_client_id.text()
+        config["Spotify"]["client_secret"] = self.spotify_client_secret.text()
 
         config["Last.fm"]["api_key"] = self.lastfm_api_key.text()
         config["Last.fm"]["username"] = self.lastfm_username.text()
 
         # layer settings
-        config["Settings"]["front_image_enabled"] = str(self.front_image_checkbox.isChecked())
-        config["Settings"]["front_image_size"] = str(self.front_image_size.value())
-        config["Settings"]["blur_image_enabled"] = str(self.blur_image_checkbox.isChecked())
-        config["Settings"]["blur_image_size"] = str(self.blur_image_size.value())
-        config["Settings"]["blur_image_radius"] = str(self.blur_image_radius.value())
+        config["Settings"]["foreground_enabled"] = str(self.foreground_checkbox.isChecked())
+        config["Settings"]["foreground_size"] = str(self.foreground_size.value())
+        config["Settings"]["background_type"] = self.background_combo.currentText()
+        config["Settings"]["blur_enabled"] = str(self.blur_checkbox.isChecked())
+        config["Settings"]["blur_strength"] = str(self.blur_strength.value())
 
         config["Settings"]["theme"] = self.theme_selector.currentText()
-        config["Settings"]["request_interval"] = str(self.request_interval.value())
 
         if check_config(config):
-            with open("config.ini","w") as f:
-                config.write(f)
-
-            QtWidgets.QApplication.exit(1)
+            config.save()  # save settings.ini and services.ini
+            self.close()  # close window
+            QtWidgets.QApplication.exit(1)  # send restart exit code
 
     def edit_themes(self):
         try:
@@ -466,10 +590,12 @@ class SettingsWindow(QtWidgets.QDialog):
             os.makedirs("themes")
             os.startfile("themes")
 
-    def open_link(self,link):
-        QtGui.QDesktopServices.openUrl(QtCore.QUrl(link))
+    def background_setEnabled_check(self):
+        self.blur_checkbox.setEnabled(self.background_combo.currentIndex() in (2,3))
+        self.blur_strength.setEnabled(
+            self.background_combo.currentIndex() in (2,3) and self.blur_checkbox.isChecked()
+        )
 
-    
 
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, icon, parent=None):
@@ -496,14 +622,15 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.help_menu = self.menu.addMenu("Help")
         help_latest = self.help_menu.addAction("Lastest Release")
         help_current = self.help_menu.addAction("This Release")
-        help_latest.triggered.connect(self.open_link("https://github.com/jac0b-w/album-art-wallpaper/blob/master/README.md"))
-        help_current.triggered.connect(self.open_link(f"https://github.com/jac0b-w/album-art-wallpaper/blob/{__version__}/README.md"))
+        github_link = "https://github.com/jac0b-w/album-art-wallpaper/"
+        help_latest.triggered.connect(self.open_link(f"{github_link}blob/master/README.md"))
+        help_current.triggered.connect(self.open_link(f"{github_link}blob/{__version__}/README.md"))
 
         bug_report_item = self.menu.addAction("Bug Report")
-        bug_report_item.triggered.connect(self.open_link("https://github.com/jac0b-w/album-art-wallpaper/issues"))
+        bug_report_item.triggered.connect(self.open_link(f"{github_link}issues"))
 
         release_item = self.menu.addAction(f"{__version__}")
-        release_item.triggered.connect(self.open_link("https://github.com/jac0b-w/album-art-wallpaper/releases"))
+        release_item.triggered.connect(self.open_link(f"{github_link}releases"))
 
         self.menu.addSeparator()
 
@@ -548,7 +675,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.showMessage('Saved','Wallpaper saved as default')
 
     def open_link(self,link):
-        return lambda: webbrowser.open(link)
+        return lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(link))
 
     def exit(self,exit_code):
         def exit_function():
@@ -577,14 +704,15 @@ if __name__ in "__main__":
         app_log = logging.getLogger("root")
         app_log.setLevel(logging.ERROR)
         app_log.addHandler(handler)
-    except:
+    except Exception as e:
         app_log.exception("Startup error")
+        if __debug__:
+            raise(e)
 
     while exit_code == 1:
         exit_code = 0
         try:
-            config = configparser.ConfigParser()
-            config.read('config.ini')
+            config = ConfigManager()
 
             try:
                 with open(f"themes/{config['Settings']['theme']}.py") as f:
@@ -608,9 +736,12 @@ if __name__ in "__main__":
             if not os.path.exists("images/default_wallpaper.jpg"):
                 set_default_wallpaper()
 
-            check_file("config.ini",True)
-            check_file("assets/icon.ico",True)
-            check_file("assets/missing_art.jpg",True)
+            check_file(
+                "settings.ini",
+                "services.ini",
+                "assets/icon.ico",
+                "assets/missing_art.jpg",
+                quit_if_missing = True)
             check_file("assets/settings_icon.png",False)
 
             if check_config(config):
@@ -624,5 +755,8 @@ if __name__ in "__main__":
             else:
                 settings_window.exec_()
 
-        except:
+        except Exception as e:
             app_log.exception("main error")
+            if __debug__:
+                raise(e)
+
