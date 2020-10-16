@@ -5,7 +5,7 @@
 /dist
 /build
 .cache
-config.ini
+services.ini
 test*
 *.spec
 *.log*
