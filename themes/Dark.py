@@ -9,16 +9,10 @@
         padding-left: 6px;
         padding-right: 6px;
     }
-    QLabel
-    {
+    QLabel {
         color: white;
     }
-    QRadioButton
-    {
-        color:white;
-    }
-    QPushButton
-    {
+    QPushButton {
         border-style: outset;
         border-width: 2px;
         border-radius: 15px;
@@ -26,8 +20,7 @@
         color: white;
         padding: 4px;
     }
-    QSpinBox
-    {
+    QSpinBox {
         border: 1px solid white;
         width: 150;
         height: 20px;
@@ -35,8 +28,11 @@
         color: white;
         padding-left: 6px;
     }
-    QDoubleSpinBox
-    {
+    QSpinBox:disabled {
+        color:dimgrey;
+        border: 1px solid dimgrey;
+    }
+    QDoubleSpinBox {
         border: 1px solid white;
         width: 150;
         height: 20px;
@@ -44,8 +40,11 @@
         color: white;
         padding-left: 6px;
     }
-    QComboBox
-    {
+    QDoubleSpinBox:disabled {
+        color:dimgrey;
+        border: 1px solid dimgrey;
+    }
+    QComboBox {
         border: 1px solid white;
         width: 150;
         height: 20px;
@@ -53,23 +52,29 @@
         color: white;
         padding-left: 6px;
     }
-    QComboBox QAbstractItemView
-    {
+    QComboBox QAbstractItemView {
         border: 1px solid white;
         selection-background-color: #262626;
         color:white;
     }
-    QWidget
-    {
+    QWidget {
         background-color: black;
         font-size: 15px;
     }
+    QMenu {
+        color: white;
+    }
+    QMenu::item:selected {
+        background-color: #262626;
+    }
     ''',
 "menu":'''
-    QMenu
-    {
-        background-color:black;
+    QMenu {
+        background-color: black;
         color: white;
+    }
+    QMenu::item:selected {
+        background-color: #262626;
     }
     '''
 }

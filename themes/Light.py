@@ -1,6 +1,6 @@
 {
 "settings_window":'''
-    QLineEdit  {
+    QLineEdit {
         border: 1px solid black;
         width: 150;
         height: 20px;
@@ -9,16 +9,10 @@
         padding-left: 6px;
         padding-right: 6px;
     }
-    QLabel
-    {
+    QLabel {
         color: black;
     }
-    QRadioButton
-    {
-        color:black;
-    }
-    QPushButton
-    {
+    QPushButton {
         border-style: outset;
         border-width: 2px;
         border-radius: 15px;
@@ -26,8 +20,7 @@
         color: black;
         padding: 4px;
     }
-    QSpinBox
-    {
+    QSpinBox {
         border: 1px solid black;
         width: 150;
         height: 20px;
@@ -35,8 +28,11 @@
         color: black;
         padding-left: 6px;
     }
-    QDoubleSpinBox
-    {
+    QSpinBox:disabled {
+        border: 1px solid lightgrey;
+        color: lightgrey
+    }
+    QDoubleSpinBox {
         border: 1px solid black;
         width: 150;
         height: 20px;
@@ -44,8 +40,11 @@
         color: black;
         padding-left: 6px;
     }
-    QComboBox
-    {
+    QDoubleSpinBox:disabled {
+        border: 1px solid lightgrey;
+        color: lightgrey
+    }
+    QComboBox {
         border: 1px solid black;
         width: 150;
         height: 20px;
@@ -53,23 +52,29 @@
         color: black;
         padding-left: 6px;
     }
-    QComboBox QAbstractItemView
-    {
+    QComboBox QAbstractItemView {
         border: 1px solid black;
-        selection-background-color: lightgrey;
+        selection-background-color: #d4d4d4;
         color:black;
     }
-    QWidget
-    {
+    QWidget {
         background-color: white;
         font-size: 15px;
     }
+    QMenu {
+        color: black;
+    }
+    QMenu::item:selected {
+        background-color: #d4d4d4;
+    }
     ''',
 "menu":'''
-    QMenu
-    {
+    QMenu {
         background-color:white;
         color: black;
+    }
+    QMenu::item:selected {
+        background-color: #d4d4d4;
     }
     '''
 }
