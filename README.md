@@ -14,15 +14,15 @@ An internet connection is required.
 
 There is a short initial setup:
 
-1. Start the app. A music note icon will appear in the system tray
-2. Open settings bt right clicking the app in the system tray and set the service and API Keys (see below)
-3. If you are setting new keys for the first time save and start the app again
-4. Start playing music and your desktop wallpaper will change, you can right click the app in the system tray for options.
+1. Start the app (This takes a while ~15s). A music note icon will appear in the system tray and a window will open prompting you to select your service (Spotify or Last.fm) and enter your API keys (see section below)
+2. Press 'Save' and start the app again.
+    - If you are using the Spotify service this time your browser will open prompting you to login to your Spotify account.
+3. Start playing music and your desktop wallpaper will change, you can click the icon in the system tray for more options.
 
 If you are running the source you will also need to (this is not required if you are using the installer):
 
 - Install the dependencies ```pip install -r requirements.txt```
-- Rename ```_config.ini``` to ```config.ini```
+- Rename ```_services.ini``` to ```services.ini```
 
 
 ### Getting your API Keys
