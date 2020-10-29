@@ -40,7 +40,7 @@ def spotify_auth():
 
     try:
         return spotipy.Spotify(auth=token),sp_oauth,token_info
-    except:
+    except Exception:
         print("User token could not be created")
         sys.exit()
     
@@ -56,11 +56,32 @@ def set_wallpaper(is_default):
 
 
 def set_default_wallpaper():
+    """
+    1. First look in %APPDATA%\Microsoft\Windows\Themes\CachedFiles
+    and use most recent image
+    2. If that fails look for %APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper
+    3. If that fails find the original path of the wallpaper and save that image instead
+    # https://stackoverflow.com/questions/44867820/
+    4. Finally if all fail just save use a blank image as the dafault wallpaper
+    """
+    default_wallpaper_path = "images/default_wallpaper.jpg"
     cached_folder = os.path.expandvars(r'%APPDATA%\Microsoft\Windows\Themes\CachedFiles\*')
     list_of_files = glob.glob(cached_folder)
-    latest_file = max(list_of_files, key=os.path.getctime)
-    shutil.copy(latest_file, "images/default_wallpaper.jpg")
-
+    if list_of_files:
+        current_wallpaper = max(list_of_files, key=os.path.getctime)
+    else:
+        current_wallpaper = os.path.expandvars(
+        r'%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper')
+    try:
+        shutil.copy(current_wallpaper, default_wallpaper_path)
+    except FileNotFoundError:
+        ubuf = ctypes.create_unicode_buffer(200)
+        ctypes.windll.user32.SystemParametersInfoW(0x0073,200,ubuf,0)
+        try:
+            shutil.copy(ubuf.value, default_wallpaper_path)
+        except FileNotFoundError:
+            image = Image.new("RGB",(1,1))
+            image.save(default_wallpaper_path,"JPEG",quality=95)
 
 def check_config(config):
     # invalid spotify keys
@@ -185,25 +206,25 @@ class CurrentArt():
         except: # occurs when the user isn't playing a track
             return "default"
 
-    def download_image(self,url):
+    @staticmethod
+    def download_image(url):
         print("IMAGE DOWNLOADED")
         response = requests.get(url)
         return Image.open(BytesIO(response.content)).convert("RGB")
-
-    '''
-    3 possible inputs (from self.art_url):
-    url string   | Set wallpaper to this image (if it's not lastfm missing image)
-    "default"    | Set default wallpaper
-    None         | Do not change wallpaper
-
-    4 Possible outputs
-    Image.Image  | Generate and set wallpaper to this image
-    "default"    | Set default wallpaper
-    "generated"  | Set wallpaper to last generated wallpaper
-    None         | Do not change wallpaper
-    '''
     
     def get_current_art(self):
+        '''
+        3 possible inputs (from self.art_url):
+        url string   | Set wallpaper to this image (if it's not lastfm missing image)
+        "default"    | Set default wallpaper
+        None         | Do not change wallpaper
+
+        4 Possible outputs
+        Image.Image  | Generate and set wallpaper to this image
+        "default"    | Set default wallpaper
+        "generated"  | Set wallpaper to last generated wallpaper
+        None         | Do not change wallpaper
+        '''
         image_url = self.art_url()
         if (image_url == self.previous_image_url):  # Image hasn't changed
             return None
