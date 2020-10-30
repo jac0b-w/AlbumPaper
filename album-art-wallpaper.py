@@ -772,7 +772,9 @@ if __name__ in "__main__":
                 "assets/icon.ico",
                 "assets/missing_art.jpg",
                 quit_if_missing = True)
-            check_file("assets/settings_icon.png",False)
+            check_file(
+                "assets/settings_icon.png",
+                quit_if_missing = False)
 
             if check_config(config):
                 thread = Worker()
