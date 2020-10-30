@@ -6,7 +6,7 @@ from PIL import Image, ImageChops, ImageFilter, ImageDraw
 from io import BytesIO
 
 
-__version__ = "v3.0"  # As tagged on github
+__version__ = "v3.1"  # As tagged on github
 
 
 def timer(func):
