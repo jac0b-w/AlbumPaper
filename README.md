@@ -53,11 +53,11 @@ Any contributions are welcomed. If you have any questions just ask in an issue.
 
 ## System Usage
 
-No CPU or network usage until a new image is generated (song is skipped)
+Very low CPU and network usage until a new image is generated (song is skipped)
 
-CPU Usage: ~3-6% on my system
+CPU Usage spikes: ~3% Art/Wallpaper background, ~20-25% Gradient/Solid background
 
-Network Usage: <1mbps
+Network Usage spikes: <1mbps
 
 ## Examples
 
