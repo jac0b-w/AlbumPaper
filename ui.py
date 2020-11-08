@@ -10,7 +10,7 @@ import os, glob, ctypes
 from config import config  # object
 from wallpaper import Wallpaper
 
-VERSION = "pre v3.2" #as tagged on github
+VERSION = "v3.2" #as tagged on github
 
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, icon, parent, signal):

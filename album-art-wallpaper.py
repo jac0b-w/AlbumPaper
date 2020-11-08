@@ -1,4 +1,4 @@
-import os, sys, time, spotipy, requests, logging, logging.handlers, threading
+import os, sys, spotipy, requests, logging, logging.handlers, threading
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
 from io import BytesIO
@@ -178,7 +178,7 @@ class Worker(QtCore.QThread):
                 wallpaper.generate_wallpaper(image)
 
                 self.sleep.wait(request_interval)
-                
+
                 if self.is_paused:
                     Wallpaper.set(is_default=True)
                     self.sleep.wait()
