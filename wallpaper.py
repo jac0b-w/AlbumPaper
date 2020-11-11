@@ -136,16 +136,25 @@ class GenerateWallpaper:
         Pair the most saturated colour with the colour that has the largest percieved difference
         """
 
-        saturations = {color:self.color_saturation(color) for color in dominant_colors[:7]}
-        sorted_saturations = sorted(saturations.items(), key=lambda x: x[1], reverse=True)  # (((255,0,0),1),((100,0,0),0.5),...)
+        saturations = [
+            {
+                "color":color,
+                "saturation": self.color_saturation(color)
+            } for color in dominant_colors[:7]
+        ]
+        sorted_saturations = sorted(saturations, key=lambda x: x["saturation"], reverse=True)
+        # e.g. [{"color":(255,0,0),"saturation":0.75},{"color":(255,255,255),"saturation":0} ...]
 
-        color_differences = {
-            (sorted_saturations[0][0],color):self.color_difference(sorted_saturations[0][0],color) \
-            for color,_ in sorted_saturations[1:]
-        }
-        sorted_color_differences = sorted(color_differences.items(), key=lambda x: x[1], reverse=True)
+        most_saturated = sorted_saturations[0]["color"]
+        color_differences = [
+            {
+                "color pair":(most_saturated,saturation_dict["color"]),
+                "difference":self.color_difference(most_saturated,saturation_dict["color"])
+            } for saturation_dict in sorted_saturations[1:]
+        ]
+        sorted_color_differences = sorted(color_differences, key=lambda x: x["difference"], reverse=True)
 
-        gradient_pair = sorted_color_differences[0][0]
+        gradient_pair = sorted_color_differences[0]["color pair"]
 
         # Draw the gradient
         for i, color in enumerate(interpolate(*gradient_pair, self.avaliable_geometry.w*2)):
