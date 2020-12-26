@@ -1,3 +1,4 @@
+# external imports
 import os, sys, spotipy, requests, logging, logging.handlers, threading
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
@@ -171,11 +172,11 @@ class Worker(QtCore.QThread):
 
             request_interval = config.settings.getfloat("request_interval")
 
-            wallpaper = GenerateWallpaper(app)
+            generate_wallpaper = GenerateWallpaper(app)
 
             while True:
                 image = get_art.get_current_art()
-                wallpaper.generate_wallpaper(image)
+                generate_wallpaper(image)
 
                 self.sleep.wait(request_interval)
 

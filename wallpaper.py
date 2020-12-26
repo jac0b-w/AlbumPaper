@@ -170,7 +170,7 @@ class GenerateWallpaper:
     @timer
     def art_background(self,image):
         max_dim = max(self.avaliable_geometry[:2])
-        art_resized = image.resize([max_dim]*2,1)
+        art_resized = image.resize([max_dim]*2,3)
         return art_resized
 
     @timer
@@ -179,7 +179,7 @@ class GenerateWallpaper:
 
     def gen_foreground(self,image):
         if self.foreground_enabled:
-            return image.resize([self.foreground_size]*2,1)
+            return image.resize([self.foreground_size]*2,3)
         else:
             return None
 
@@ -200,7 +200,7 @@ class GenerateWallpaper:
         self.save_image("images/generated_wallpaper.jpg",base)
 
     @timer
-    def generate_wallpaper(self,image):
+    def __call__(self,image):
         if isinstance(image,Image.Image):
             background = self.gen_background(image)
             if self.blur_enabled:
