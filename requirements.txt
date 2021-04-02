@@ -3,7 +3,7 @@ chardet==3.0.4
 idna==2.9
 joblib==0.17.0
 numpy==1.18.5
-Pillow==7.1.2
+Pillow==8.1.1
 PySide2==5.15.0
 requests==2.23.0
 scikit-learn==0.23.2
