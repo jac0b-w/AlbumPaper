@@ -15,7 +15,7 @@ VERSION = "v3.2.1" #as tagged on github
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, icon, parent, signal):
         QtWidgets.QSystemTrayIcon.__init__(self, icon, parent)
-        self.setToolTip('Album Art Wallpaper')
+        self.setToolTip('AlbumPaper')
         self.menu = QtWidgets.QMenu(parent)
         self.cursor = QtGui.QCursor()
         self.signal = signal
@@ -38,7 +38,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.help_menu = self.menu.addMenu("Help")
         help_latest = self.help_menu.addAction("Lastest Release")
         help_current = self.help_menu.addAction("This Release")
-        github_link = "https://github.com/jac0b-w/album-art-wallpaper/"
+        github_link = "https://github.com/jac0b-w/AlbumPaper/"
         help_latest.triggered.connect(self.open_link(f"{github_link}blob/master/README.md"))
         help_current.triggered.connect(self.open_link(f"{github_link}blob/{VERSION}/README.md"))
 
@@ -95,6 +95,8 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.is_paused = not self.is_paused
         pause_text = {True:"Continue",False:"Pause"}[self.is_paused]
         self.pause_item.setText(pause_text)
+        icon = {False:"enabled",True:"disabled"}[self.is_paused]
+        self.setIcon(QtGui.QIcon(f"assets/{icon}.png"))
         self.signal.pause_state.emit(self.is_paused)
         
     def set_default_wallpaper(self):
@@ -188,7 +190,7 @@ class SettingsWindow(QtWidgets.QDialog):
 
         self.service_combo.setCurrentIndex(index)
         help_link = QtWidgets.QLabel(
-            f'<a href="https://github.com/jac0b-w/album-art-wallpaper#getting-started">'\
+            f'<a href="https://github.com/jac0b-w/AlbumPaper#getting-started">'\
             'Where do I find API keys?</a>')
         help_link.linkActivated.connect(
             lambda link: QtGui.QDesktopServices.openUrl(QtCore.QUrl(link)))
