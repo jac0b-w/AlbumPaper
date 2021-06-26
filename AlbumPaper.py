@@ -80,7 +80,7 @@ class CurrentArt():
     def lastfm_request(self):
         try:
             # define headers and URL
-            headers = {'user-agent': "album-art-wallpaper"}
+            headers = {'user-agent': "AlbumPaper"}
             url = 'http://ws.audioscrobbler.com/2.0/'
 
             payload = {
@@ -158,10 +158,11 @@ class WorkerSignals(QtCore.QObject):
 
 class Worker(QtCore.QThread):
     # Worker thread
-    sleep = threading.Event()  # improves pause responsiveness
+    
     @QtCore.Slot()
     def run(self):
         try:
+            self.sleep = threading.Event()  # improves pause responsiveness
             self.is_paused = False
 
             if config.settings["service"] == "spotify":
@@ -178,12 +179,11 @@ class Worker(QtCore.QThread):
                 image = get_art.get_current_art()
                 generate_wallpaper(image)
 
-                self.sleep.wait(request_interval)
-
                 if self.is_paused:
-                    Wallpaper.set(is_default=True)
                     self.sleep.wait()
                     get_art.previous_image_url = None
+                else:
+                    self.sleep.wait(request_interval)
 
         except Exception as e:
             app_log.exception("worker error")
@@ -193,8 +193,11 @@ class Worker(QtCore.QThread):
     @QtCore.Slot(bool)
     def pause_state(self, is_paused):
         self.is_paused = is_paused
-        self.sleep.set()
-
+        if is_paused:
+            self.sleep.clear()
+            Wallpaper.set(is_default=True)
+        else:
+            self.sleep.set()
 
 '''
 exit_code = 1, restart app
@@ -234,10 +237,11 @@ if __name__ in "__main__":
             signal = WorkerSignals()
 
             tray_icon = SystemTrayIcon(
-                icon = QtGui.QIcon("assets/icon.ico"),
+                icon = QtGui.QIcon("assets/enabled.png"),
                 parent = w,
                 signal = signal
             )
+
             tray_icon.show()
 
             if not os.path.exists('images'):
@@ -248,7 +252,8 @@ if __name__ in "__main__":
             check_file(
                 "settings.ini",
                 "services.ini",
-                "assets/icon.ico",
+                "assets/enabled.png",
+                "assets/disabled.png",
                 "assets/missing_art.jpg",
                 quit_if_missing = True)
             check_file(
