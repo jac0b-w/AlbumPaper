@@ -1,4 +1,4 @@
-# Album Art Wallpaper
+# AlbumPaper
 
 This is a system tray app for windows that will change your desktop wallpaper based on the track you are listening to.
 Works with Spotify or Last.fm.
@@ -10,7 +10,7 @@ An internet connection is required.
 
 ## Getting Started
 
-[Download installer for windows](https://github.com/jac0b-w/album-art-wallpaper/releases/latest)
+[Download installer for windows](https://github.com/jac0b-w/AlbumPaper/releases/latest)
 
 There is a short initial setup:
 
