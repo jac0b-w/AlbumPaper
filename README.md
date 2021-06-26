@@ -49,7 +49,7 @@ Add your last.fm username to settings.
 
 ## Contibuting
 
-Any contributions are welcomed. If you have any questions just ask in an issue.
+Any contributions are welcomed. Please ask questions and make suggestions in discussions and create an issue if you've encountered a problem.
 
 ## System Usage
 
