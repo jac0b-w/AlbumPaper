@@ -8,6 +8,7 @@ from io import BytesIO
 from ui import SystemTrayIcon, SettingsWindow
 from config import config  # object
 from wallpaper import Wallpaper, GenerateWallpaper
+from mutex import MutexNotAquiredError, NamedMutex
 
 def spotify_auth():
     client_id = config.spotify["client_id"]
@@ -34,7 +35,7 @@ def spotify_auth():
         print("User token could not be created")
         sys.exit()
 
-def check_file(*paths,quit_if_missing=True):
+def check_file(*paths, quit_if_missing=True):
     for path in paths:
         if not os.path.exists(path):
             tray_icon.showMessage("Missing file",f"Can't find {path}")
@@ -43,7 +44,7 @@ def check_file(*paths,quit_if_missing=True):
                 sys.exit()
 
 class CurrentArt():
-    def __init__(self,sp=None):
+    def __init__(self, sp=None):
         if sp is None:  # using lastfm
             self.art_url = self.lastfm_art_url
         else:
@@ -54,7 +55,7 @@ class CurrentArt():
         self.previous_image_url = None
         self.previously_generated_url = None
     
-    def spotify_art_url(self):
+    def spotify_art_url(self) -> str:
         try:
             self.refresh_token()
             current = self.sp.currently_playing()
@@ -114,7 +115,7 @@ class CurrentArt():
             return "default"
 
     @staticmethod
-    def download_image(url):
+    def download_image(url: str) -> Image.Image:
         print("IMAGE DOWNLOADED")
         response = requests.get(url)
         return Image.open(BytesIO(response.content)).convert("RGB")
@@ -158,7 +159,6 @@ class WorkerSignals(QtCore.QObject):
 
 class Worker(QtCore.QThread):
     # Worker thread
-    
     @QtCore.Slot()
     def run(self):
         try:
@@ -191,7 +191,7 @@ class Worker(QtCore.QThread):
                 raise(e)
 
     @QtCore.Slot(bool)
-    def pause_state(self, is_paused):
+    def pause_state(self, is_paused: bool):
         self.is_paused = is_paused
         if is_paused:
             self.sleep.clear()
@@ -233,14 +233,20 @@ if __name__ in "__main__":
                 app = QtWidgets.QApplication.instance()
 
             app.setQuitOnLastWindowClosed(False)
-            w = QtWidgets.QWidget()
+            widget = QtWidgets.QWidget()
             signal = WorkerSignals()
 
             tray_icon = SystemTrayIcon(
                 icon = QtGui.QIcon("assets/enabled.png"),
-                parent = w,
+                parent = widget,
                 signal = signal
             )
+
+            try:
+                mutex = NamedMutex(b"AlbumPaper")
+            except MutexNotAquiredError:
+                tray_icon.showMessage("App already open", "")
+                sys.exit()
 
             tray_icon.show()
 
@@ -278,3 +284,4 @@ if __name__ in "__main__":
             if __debug__:
                 raise(e)
 
+    mutex.release()

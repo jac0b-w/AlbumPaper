@@ -10,7 +10,7 @@ import os, glob, ctypes
 from config import config  # object
 from wallpaper import Wallpaper
 
-VERSION = "v3.2.1" #as tagged on github
+VERSION = "v3.3" #as tagged on github
 
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, icon, parent, signal):
@@ -32,6 +32,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
         settings_item = self.menu.addAction("Settings")
         settings_item.triggered.connect(self.settings)
+        self.settings_window = SettingsWindow(self)
 
         self.menu.addSeparator()
 
@@ -87,9 +88,8 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         return x,y,menu_width,menu_height
 
     def settings(self):
-        settings_window = SettingsWindow(self)
-        settings_window.show()
-        settings_window.activateWindow()
+        self.settings_window.show()
+        self.settings_window.activateWindow()
 
     def pause(self):
         self.is_paused = not self.is_paused
@@ -106,7 +106,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def open_link(self,link):
         return lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(link))
 
-    def exit(self,exit_code):
+    def exit(self, exit_code):
         def exit_function():
             Wallpaper.set(is_default = True)
             QtWidgets.QApplication.exit(exit_code)
@@ -276,6 +276,10 @@ class SettingsWindow(QtWidgets.QDialog):
             os.startfile("themes")
 
     def background_setEnabled_check(self):
+        """
+        Show blur option when 'Wallpaper' or 'Art' background options
+        are selected
+        """
         self.blur_checkbox.setEnabled(self.background_combo.currentIndex() in (2,3))
         self.blur_strength.setEnabled(
             self.background_combo.currentIndex() in (2,3) and self.blur_checkbox.isChecked()
