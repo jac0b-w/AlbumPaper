@@ -14,9 +14,9 @@ from config import config  # object
 
 
 def timer(func):
-    def wrapper(*args,**kwargs):
+    def wrapper(*args, **kwargs):
         start = time.time()
-        return_values = func(*args,**kwargs)
+        return_values = func(*args, **kwargs)
         if time.time() - start > 0.005:
             print(f"function {func.__name__} took {time.time() - start} seconds")
         return return_values
@@ -39,7 +39,7 @@ class GenerateWallpaper:
 
         self.foreground_enabled = config.settings.getboolean("foreground_enabled")
         
-        Geometry = collections.namedtuple('Geometry',["w","h","left","top"])
+        Geometry = collections.namedtuple('Geometry', ["w","h","left","top"])
         dw = app.primaryScreen()
         self.display_geometry = Geometry(
             dw.size().width(),
@@ -70,7 +70,7 @@ class GenerateWallpaper:
         shape = ar.shape
         ar = ar.reshape(numpy.product(shape[:2]), shape[2]).astype(float)
 
-        kmeans = sklearn.cluster.KMeans(
+        kmeans = sklearn.cluster.MiniBatchKMeans(
             n_clusters=num_clusters,
             init="k-means++",
             max_iter=20,
