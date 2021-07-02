@@ -54,8 +54,6 @@ class GenerateWallpaper:
             dw.availableGeometry().top()
         )
 
-        print(f"{self.display_geometry=} {self.avaliable_geometry=}")
-
     @timer
     def dominant_colors(self,image): 
         """
@@ -63,7 +61,6 @@ class GenerateWallpaper:
         Output: A list of 10 colors in the image from most dominant to least dominant
         Adaptation of https://stackoverflow.com/a/3244061/7274182
         """
-        num_clusters = 10
 
         image = image.resize((150, 150))      # optional, to reduce time
         ar = numpy.asarray(image)
@@ -71,15 +68,15 @@ class GenerateWallpaper:
         ar = ar.reshape(numpy.product(shape[:2]), shape[2]).astype(float)
 
         kmeans = sklearn.cluster.MiniBatchKMeans(
-            n_clusters=num_clusters,
-            init="k-means++",
-            max_iter=20,
-            random_state=1000
+            n_clusters = 10,
+            init = "k-means++",
+            max_iter= 20,
+            random_state = 1000
         ).fit(ar)
         codes = kmeans.cluster_centers_
 
-        vecs, dist = scipy.cluster.vq.vq(ar, codes)         # assign codes
-        counts, bins = numpy.histogram(vecs, len(codes))    # count occurrences
+        vecs, _dist = scipy.cluster.vq.vq(ar, codes)         # assign codes
+        counts, _bins = numpy.histogram(vecs, len(codes))    # count occurrences
 
         Color = collections.namedtuple('Color',['r','g','b'])
         colors = []
@@ -236,7 +233,7 @@ class Wallpaper:
             file_name = "images/generated_wallpaper.jpg"
         abs_path = os.path.abspath(file_name)
         ctypes.windll.user32.SystemParametersInfoW(20, 0, abs_path , 0)
-        print("SET NEW WALLPAPER")
+        print("NEW WALLPAPER SET")
 
     @staticmethod
     def set_default():
