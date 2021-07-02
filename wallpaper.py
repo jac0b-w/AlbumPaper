@@ -42,8 +42,8 @@ class GenerateWallpaper:
         Geometry = collections.namedtuple('Geometry',["w","h","left","top"])
         dw = app.primaryScreen()
         self.display_geometry = Geometry(
-            dw.geometry().width(),
-            dw.geometry().height(),
+            dw.size().width(),
+            dw.size().height(),
             0,
             0
         )
@@ -53,6 +53,8 @@ class GenerateWallpaper:
             dw.availableGeometry().left(),
             dw.availableGeometry().top()
         )
+
+        print(f"{self.display_geometry=} {self.avaliable_geometry=}")
 
     @timer
     def dominant_colors(self,image): 
@@ -106,7 +108,7 @@ class GenerateWallpaper:
         max_rgb = max(color)/255
         return (max_rgb+min_rgb)/2
 
-    def color_saturation(self,color): # https://medium.com/@donatbalipapp/colours-maths-90346fb5abda
+    def color_saturation(self, color): # https://medium.com/@donatbalipapp/colours-maths-90346fb5abda
         """
         Input: RGB named tuple
         Output: Saturation of the color 0-1
@@ -126,7 +128,7 @@ class GenerateWallpaper:
             for i in range(interval):
                 yield [round(f + det * i) for f, det in zip(f_co, det_co)]
 
-        gradient = Image.new("RGB",self.avaliable_geometry[:2],color=0)
+        gradient = Image.new("RGB", self.display_geometry[:2], color=0)
         draw = ImageDraw.Draw(gradient)
         dominant_colors = self.dominant_colors(image)
 
@@ -157,51 +159,58 @@ class GenerateWallpaper:
         gradient_pair = sorted_color_differences[0]["color pair"]
 
         # Draw the gradient
-        for i, color in enumerate(interpolate(*gradient_pair, self.avaliable_geometry.w*2)):
+        for i, color in enumerate(interpolate(*gradient_pair, self.display_geometry.w*2)):
             draw.line([(i, 0), (0, i)], tuple(color), width=1)
 
         return gradient
 
     @timer
-    def color_background(self,image):
+    def color_background(self, image):
         color = self.dominant_colors(image)[0]
-        return Image.new("RGB",self.avaliable_geometry[:2],color)
+        return Image.new("RGB", self.display_geometry[:2], color)
 
     @timer
-    def art_background(self,image):
-        max_dim = max(self.avaliable_geometry[:2])
-        art_resized = image.resize([max_dim]*2,3)
+    def art_background(self, image):
+        max_dim = max(self.display_geometry[:2])
+        art_resized = image.resize([max_dim]*2, 3)
         return art_resized
 
     @timer
-    def wallpaper_background(self,*_):
+    def wallpaper_background(self, *_):
         return Image.open("images/default_wallpaper.jpg")
 
-    def gen_foreground(self,image):
+    def gen_foreground(self, image):
         if self.foreground_enabled:
-            return image.resize([self.foreground_size]*2,3)
+            return image.resize([self.foreground_size]*2, 3)
         else:
             return None
 
-    def save_image(self,path,image):
+    def save_image(self, path, image):
         try:
-            image.save(path,"JPEG",quality=95)
+            image.save(path, "JPEG", quality=95)
         except OSError:
             time.sleep(0.1)
-            self.save_image(path,image)
+            self.save_image(path, image)
 
-    def paste_images(self, *layers):
-        base = Image.new("RGB",self.display_geometry[:2])
-        for layer in layers:
-            if layer is not None:
-                x = int((self.avaliable_geometry.w - layer.size[0])/2) + self.avaliable_geometry.left
-                y = int((self.avaliable_geometry.h - layer.size[1])/2) + self.avaliable_geometry.top
-                base.paste(layer,(x,y))
-        self.save_image("images/generated_wallpaper.jpg",base)
+    def paste_images(self, background: Image, foreground):
+        base = Image.new("RGB", self.display_geometry[:2])
+        
+        # background paste
+        x = int((self.display_geometry.w - background.size[0])/2) + self.display_geometry.left
+        y = int((self.display_geometry.h - background.size[1])/2) + self.display_geometry.top
+        base.paste(background, (x,y))
+
+        # foreground paste
+        if foreground is not None:
+            x = int((self.avaliable_geometry.w - foreground.size[0])/2) + self.avaliable_geometry.left
+            y = int((self.avaliable_geometry.h - foreground.size[1])/2) + self.avaliable_geometry.top
+            base.paste(foreground, (x,y))
+
+        self.save_image("images/generated_wallpaper.jpg", base)
 
     @timer
-    def __call__(self,image):
-        if isinstance(image,Image.Image):
+    def __call__(self, image):
+        if isinstance(image, Image.Image):
             background = self.gen_background(image)
             if self.blur_enabled:
                 background = background.filter(ImageFilter.GaussianBlur(self.blur_strength))
@@ -251,9 +260,9 @@ class Wallpaper:
             shutil.copy(current_wallpaper, default_wallpaper_path)
         except FileNotFoundError:
             ubuf = ctypes.create_unicode_buffer(200)
-            ctypes.windll.user32.SystemParametersInfoW(0x0073,200,ubuf,0)
+            ctypes.windll.user32.SystemParametersInfoW(0x0073, 200, ubuf, 0)
             try:
                 shutil.copy(ubuf.value, default_wallpaper_path)
             except FileNotFoundError:
-                image = Image.new("RGB",(1,1))
-                image.save(default_wallpaper_path,"JPEG",quality=95)
+                image = Image.new("RGB", (1,1))
+                image.save(default_wallpaper_path, "JPEG", quality=95)
