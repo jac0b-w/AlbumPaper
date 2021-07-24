@@ -55,7 +55,7 @@ class GenerateWallpaper:
         )
 
     @timer
-    def dominant_colors(self,image): 
+    def dominant_colors(self,image: Image.Image): 
         """
         Input: PIL image
         Output: A list of 10 colors in the image from most dominant to least dominant
@@ -116,24 +116,18 @@ class GenerateWallpaper:
         if luminosity == 0:
             return 0
         else:
-            return (max_rgb-min_rgb)/(1-abs(2*luminosity - 1))
+            try:
+                return (max_rgb-min_rgb)/(1-abs(2*luminosity - 1))
+            except ZeroDivisionError:
+                return 1
 
-    @timer
-    def gradient_background(self, image): # https://gist.github.com/weihanglo/1e754ec47fdd683a42fdf6a272904535
-        def interpolate(f_co, t_co, interval):
-            det_co =[(t - f) / interval for f , t in zip(f_co, t_co)]
-            for i in range(interval):
-                yield [round(f + det * i) for f, det in zip(f_co, det_co)]
-
-        gradient = Image.new("RGB", self.display_geometry[:2], color=0)
-        draw = ImageDraw.Draw(gradient)
-        dominant_colors = self.dominant_colors(image)
-
+    def gradient_colors(self, image: Image.Image): # https://stackoverflow.com/questions/30608035/plot-circular-gradients-using-pil-in-python
         """
         Determine best colours for the gradient
         Firstly get the 7 most dominant colours and pick the most saturated
         Pair the most saturated colour with the colour that has the largest percieved difference
         """
+        dominant_colors = self.dominant_colors(image)
 
         saturations = [
             {
@@ -143,8 +137,8 @@ class GenerateWallpaper:
         ]
         sorted_saturations = sorted(saturations, key=lambda x: x["saturation"], reverse=True)
         # e.g. [{"color":(255,0,0),"saturation":0.75},{"color":(255,255,255),"saturation":0} ...]
-
         most_saturated = sorted_saturations[0]["color"]
+
         color_differences = [
             {
                 "color pair":(most_saturated,saturation_dict["color"]),
@@ -153,7 +147,22 @@ class GenerateWallpaper:
         ]
         sorted_color_differences = sorted(color_differences, key=lambda x: x["difference"], reverse=True)
 
-        gradient_pair = sorted_color_differences[0]["color pair"]
+        return sorted_color_differences[0]["color pair"]
+
+        # example return data:
+        # (Color(r=120, g=50, b=12), Color(r=190, g=200, b=203))
+
+    @timer
+    def gradient_background(self, image: Image.Image): # https://gist.github.com/weihanglo/1e754ec47fdd683a42fdf6a272904535
+        def interpolate(f_co, t_co, interval):
+            det_co =[(t - f) / interval for f , t in zip(f_co, t_co)]
+            for i in range(interval):
+                yield [round(f + det * i) for f, det in zip(f_co, det_co)]
+
+        gradient = Image.new("RGB", self.display_geometry[:2])
+        draw = ImageDraw.Draw(gradient)
+
+        gradient_pair = self.gradient_colors(image)
 
         # Draw the gradient
         for i, color in enumerate(interpolate(*gradient_pair, self.display_geometry.w*2)):
@@ -162,12 +171,12 @@ class GenerateWallpaper:
         return gradient
 
     @timer
-    def color_background(self, image):
+    def color_background(self, image: Image.Image):
         color = self.dominant_colors(image)[0]
         return Image.new("RGB", self.display_geometry[:2], color)
 
     @timer
-    def art_background(self, image):
+    def art_background(self, image: Image.Image):
         max_dim = max(self.display_geometry[:2])
         art_resized = image.resize([max_dim]*2, 3)
         return art_resized
@@ -176,20 +185,20 @@ class GenerateWallpaper:
     def wallpaper_background(self, *_):
         return Image.open("images/default_wallpaper.jpg")
 
-    def gen_foreground(self, image):
+    def gen_foreground(self, image: Image.Image):
         if self.foreground_enabled:
             return image.resize([self.foreground_size]*2, 3)
         else:
             return None
 
-    def save_image(self, path, image):
+    def save_image(self, path, image: Image.Image):
         try:
             image.save(path, "JPEG", quality=95)
         except OSError:
             time.sleep(0.1)
             self.save_image(path, image)
 
-    def paste_images(self, background: Image, foreground):
+    def paste_images(self, background: Image, foreground: Image.Image):
         base = Image.new("RGB", self.display_geometry[:2])
         
         # background paste
@@ -206,7 +215,7 @@ class GenerateWallpaper:
         self.save_image("images/generated_wallpaper.jpg", base)
 
     @timer
-    def __call__(self, image):
+    def __call__(self, image: Image.Image):
         if isinstance(image, Image.Image):
             background = self.gen_background(image)
             if self.blur_enabled:
@@ -226,7 +235,7 @@ class GenerateWallpaper:
 
 class Wallpaper:
     @staticmethod
-    def set(is_default):
+    def set(is_default: bool):
         if is_default:
             file_name = "images/default_wallpaper.jpg"
         else:
