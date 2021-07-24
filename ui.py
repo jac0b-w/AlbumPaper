@@ -190,7 +190,7 @@ class SettingsWindow(QtWidgets.QDialog):
 
         self.service_combo.setCurrentIndex(index)
         help_link = QtWidgets.QLabel(
-            f'<a href="https://github.com/jac0b-w/AlbumPaper#getting-started">'\
+            f'<a href="https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys">'\
             'Where do I find API keys?</a>')
         help_link.linkActivated.connect(
             lambda link: QtGui.QDesktopServices.openUrl(QtCore.QUrl(link)))
