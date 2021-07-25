@@ -62,12 +62,14 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         exit_item.triggered.connect(self.exit(0))
 
         self.setContextMenu(self.menu)
-        self.activated.connect(self.onTrayIconActivated)
+        self.activated.connect(self.clicked)
     
-    def onTrayIconActivated(self, reason):
+    def clicked(self, reason):
         if reason == self.Trigger:  # self.Trigger is left click
-            self.menu.setGeometry(*self.context_menu_pos())
-            self.menu.show()
+            self.contextMenu().setGeometry(*self.context_menu_pos())
+            self.contextMenu().show()
+        if reason == self.DoubleClick:
+            self.pause()
 
     def context_menu_pos(self):
         menu_width = 170
