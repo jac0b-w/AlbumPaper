@@ -1,10 +1,12 @@
 /.vscode
-/__pycache__
-/images
+albumpaper/images
 /dist
 /build
 .cache
 services.ini
 test*
+*pyc
 *.spec
 *.log*
+*.lock
+/target
