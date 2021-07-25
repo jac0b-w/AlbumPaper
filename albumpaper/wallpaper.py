@@ -12,6 +12,7 @@ import os, ctypes, glob, shutil, collections, time, numpy, scipy.cluster, sklear
 from PIL import Image, ImageFilter, ImageDraw
 from config import config  # object
 
+from albumpaper_imagegen import linear_gradient, radial_gradient
 
 def timer(func):
     def wrapper(*args, **kwargs):
@@ -29,7 +30,7 @@ class GenerateWallpaper:
         background_type = config.settings.get("background_type")
         self.gen_background = {
             "Solid":self.color_background,
-            "Gradient":self.gradient_background,
+            "Gradient":self.linear_gradient_background,
             "Art":self.art_background,
             "Wallpaper":self.wallpaper_background
         }[background_type]
@@ -153,22 +154,36 @@ class GenerateWallpaper:
         # (Color(r=120, g=50, b=12), Color(r=190, g=200, b=203))
 
     @timer
-    def gradient_background(self, image: Image.Image): # https://gist.github.com/weihanglo/1e754ec47fdd683a42fdf6a272904535
-        def interpolate(f_co, t_co, interval):
-            det_co =[(t - f) / interval for f , t in zip(f_co, t_co)]
-            for i in range(interval):
-                yield [round(f + det * i) for f, det in zip(f_co, det_co)]
-
-        gradient = Image.new("RGB", self.display_geometry[:2])
-        draw = ImageDraw.Draw(gradient)
-
+    def linear_gradient_background(self, image: Image.Image) -> Image.Image: # https://gist.github.com/weihanglo/1e754ec47fdd683a42fdf6a272904535
         gradient_pair = self.gradient_colors(image)
+        geometry: tuple = self.display_geometry[:2]
 
-        # Draw the gradient
-        for i, color in enumerate(interpolate(*gradient_pair, self.display_geometry.w*2)):
-            draw.line([(i, 0), (0, i)], tuple(color), width=1)
+        raw = linear_gradient(
+            geometry = geometry,
+            from_color = list(gradient_pair[0]),
+            to_color = list(gradient_pair[1]),
+        )
+        background = Image.frombuffer("RGB", geometry, raw)
 
-        return gradient
+        return background
+
+    @timer
+    def radial_gradient_background(self, image: Image.Image) -> Image.Image:
+        gradient_pair = self.gradient_colors(image)
+        geometry: tuple = self.display_geometry[:2]
+
+        if not self.foreground_enabled:
+            self.foreground_size = 0
+
+        raw = radial_gradient(
+            geometry = geometry,
+            inner_color = list(gradient_pair[0]),
+            outer_color = list(gradient_pair[1]),
+            foreground_size = self.foreground_size,
+        )
+        background = Image.frombuffer("RGB", geometry, raw)
+
+        return background
 
     @timer
     def color_background(self, image: Image.Image):
