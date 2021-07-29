@@ -47,7 +47,7 @@ class GenerateWallpaper:
             0,
             0
         )
-        self.avaliable_geometry = Geometry(
+        self.available_geometry = Geometry(
             dw.availableGeometry().width(),
             dw.availableGeometry().height(),
             dw.availableGeometry().left(),
@@ -90,7 +90,7 @@ class GenerateWallpaper:
     def color_difference(c1, c2):
         """
         Input: RGB named tuples
-        Output: An aproximation of percieved color difference of two colors
+        Output: An approximation of perceived color difference of two colors
         https://www.compuphase.com/cmetric.htm
         """
         r = (c1.r + c2.r)/2
@@ -125,7 +125,7 @@ class GenerateWallpaper:
         """
         Determine best colours for the gradient
         Firstly get the 7 most dominant colours and pick the most saturated
-        Pair the most saturated colour with the colour that has the largest percieved difference
+        Pair the most saturated colour with the colour that has the largest perceived difference
         """
         dominant_colors = self.dominant_colors(image)
 
@@ -208,8 +208,8 @@ class GenerateWallpaper:
 
         # foreground paste
         if foreground is not None:
-            x = int((self.avaliable_geometry.w - foreground.size[0])/2) + self.avaliable_geometry.left
-            y = int((self.avaliable_geometry.h - foreground.size[1])/2) + self.avaliable_geometry.top
+            x = int((self.available_geometry.w - foreground.size[0])/2) + self.available_geometry.left
+            y = int((self.available_geometry.h - foreground.size[1])/2) + self.available_geometry.top
             base.paste(foreground, (x,y))
 
         self.save_image("images/generated_wallpaper.jpg", base)
@@ -252,7 +252,7 @@ class Wallpaper:
         2. If that fails look for %APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper
         3. If that fails find the original path of the wallpaper and save that image instead
         # https://stackoverflow.com/questions/44867820/
-        4. Finally if all fail just save use a blank image as the dafault wallpaper
+        4. Finally if all fail just save use a blank image as the default wallpaper
         """
         default_wallpaper_path = "images/default_wallpaper.jpg"
         cached_folder = os.path.expandvars(r'%APPDATA%\Microsoft\Windows\Themes\CachedFiles\*')

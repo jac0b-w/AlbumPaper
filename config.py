@@ -55,7 +55,7 @@ class Config:
 
         # If a service isn't set
         else:
-            tray_icon.showMessage('No sevice set','Set the service in settings to spotify or last.fm')
+            tray_icon.showMessage('No service set','Set the service in settings to spotify or last.fm')
             return False
 
         return True  # valid settings file

@@ -101,7 +101,7 @@ class CurrentArt():
     def lastfm_art_url(self):
         try:
             current = self.lastfm_request().json()["recenttracks"]["track"][0]
-        except KeyError: # Occurs when last.fm api fails (breifly) or API keys are invalid
+        except KeyError: # Occurs when last.fm api fails (briefly) or API keys are invalid
             return None
         except:
             # occurs with poor/no connection

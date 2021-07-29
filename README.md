@@ -29,7 +29,7 @@ If you are running the source you will also need to **(this is not required if y
 
 [This section has been moved to the wiki](https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys)
 
-## Contibuting
+## Contributing
 
 Any contributions are welcomed. Please ask questions and make suggestions in discussions and create an issue if you've encountered a problem.
 

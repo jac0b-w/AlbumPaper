@@ -3,7 +3,7 @@
 import ctypes
 from ctypes import wintypes
 
-class MutexNotAquiredError(Exception):
+class MutexNotAcquiredError(Exception):
     pass
 
 class NamedMutex:
@@ -26,7 +26,7 @@ class NamedMutex:
     def __init__(self, name: bytes):
         self.handle = self.create_mutex(None, False, name)
         if self.wait_for_single_object(self.handle, 0) != 0:
-            raise MutexNotAquiredError
+            raise MutexNotAcquiredError
 
     def release(self):
         self.release_mutex(self.handle)
