@@ -37,7 +37,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.menu.addSeparator()
 
         self.help_menu = self.menu.addMenu("Help")
-        help_latest = self.help_menu.addAction("Lastest Release")
+        help_latest = self.help_menu.addAction("Latest Release")
         help_current = self.help_menu.addAction("This Release")
         github_link = "https://github.com/jac0b-w/AlbumPaper/"
         help_latest.triggered.connect(self.open_link(f"{github_link}blob/master/README.md"))
