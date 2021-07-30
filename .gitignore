@@ -2,7 +2,7 @@
 albumpaper/images
 /dist
 /build
-.cache
+.cache*
 services.ini
 test*
 *pyc

@@ -22,7 +22,7 @@ def spotify_auth():
         client_secret,
         redirect_uri = redirect_uri,
         scope=scope,
-        cache_path=".cache",
+        cache_path=f".cache-{client_id[:4]}{client_secret[:4]}",
         show_dialog=True
     )
 
