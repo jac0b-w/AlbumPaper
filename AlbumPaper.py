@@ -8,7 +8,7 @@ from io import BytesIO
 from ui import SystemTrayIcon, SettingsWindow
 from config import config  # object
 from wallpaper import Wallpaper, GenerateWallpaper
-from mutex import MutexNotAquiredError, NamedMutex
+from mutex import MutexNotAcquiredError, NamedMutex
 
 def spotify_auth():
     client_id = config.spotify["client_id"]
@@ -244,7 +244,7 @@ if __name__ in "__main__":
 
             try:
                 mutex = NamedMutex(b"AlbumPaper")
-            except MutexNotAquiredError:
+            except MutexNotAcquiredError:
                 tray_icon.showMessage("App already open", "")
                 sys.exit()
 
