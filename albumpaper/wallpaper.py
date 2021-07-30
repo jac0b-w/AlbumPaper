@@ -9,10 +9,14 @@ Classes in this file:
 
 
 import os, ctypes, glob, shutil, collections, time, numpy, scipy.cluster, sklearn.cluster
-from PIL import Image, ImageFilter, ImageDraw
+from PIL import Image, ImageFilter
 from config import config  # object
 
 from albumpaper_imagegen import linear_gradient, radial_gradient
+
+
+DEFAULT_WALLPAPER_PATH = "images/default_wallpaper.jpg"
+GENERATED_WALLPAPER_PATH = "images/generated_wallpaper.jpg"
 
 def timer(func):
     def wrapper(*args, **kwargs):
@@ -30,7 +34,8 @@ class GenerateWallpaper:
         background_type = config.settings.get("background_type")
         self.gen_background = {
             "Solid":self.color_background,
-            "Gradient":self.linear_gradient_background,
+            "Linear Gradient":self.linear_gradient_background,
+            "Radial Gradient":self.radial_gradient_background,
             "Art":self.art_background,
             "Wallpaper":self.wallpaper_background
         }[background_type]
@@ -186,19 +191,19 @@ class GenerateWallpaper:
         return background
 
     @timer
-    def color_background(self, image: Image.Image):
+    def color_background(self, image: Image.Image) -> Image.Image:
         color = self.dominant_colors(image)[0]
         return Image.new("RGB", self.display_geometry[:2], color)
 
     @timer
-    def art_background(self, image: Image.Image):
+    def art_background(self, image: Image.Image) -> Image.Image:
         max_dim = max(self.display_geometry[:2])
         art_resized = image.resize([max_dim]*2, 3)
         return art_resized
 
     @timer
     def wallpaper_background(self, *_):
-        return Image.open("images/default_wallpaper.jpg")
+        return Image.open(DEFAULT_WALLPAPER_PATH)
 
     def gen_foreground(self, image: Image.Image):
         if self.foreground_enabled:
@@ -208,7 +213,7 @@ class GenerateWallpaper:
 
     def save_image(self, path, image: Image.Image):
         try:
-            image.save(path, "JPEG", quality=95)
+            image.save(path, "JPEG", quality=100)
         except OSError:
             time.sleep(0.1)
             self.save_image(path, image)
@@ -227,7 +232,7 @@ class GenerateWallpaper:
             y = int((self.avaliable_geometry.h - foreground.size[1])/2) + self.avaliable_geometry.top
             base.paste(foreground, (x,y))
 
-        self.save_image("images/generated_wallpaper.jpg", base)
+        self.save_image(GENERATED_WALLPAPER_PATH, base)
 
     @timer
     def __call__(self, image: Image.Image):
@@ -251,10 +256,7 @@ class GenerateWallpaper:
 class Wallpaper:
     @staticmethod
     def set(is_default: bool):
-        if is_default:
-            file_name = "images/default_wallpaper.jpg"
-        else:
-            file_name = "images/generated_wallpaper.jpg"
+        file_name = DEFAULT_WALLPAPER_PATH if is_default else GENERATED_WALLPAPER_PATH
         abs_path = os.path.abspath(file_name)
         ctypes.windll.user32.SystemParametersInfoW(20, 0, abs_path , 0)
         print("NEW WALLPAPER SET")
@@ -269,7 +271,6 @@ class Wallpaper:
         # https://stackoverflow.com/questions/44867820/
         4. Finally if all fail just save use a blank image as the dafault wallpaper
         """
-        default_wallpaper_path = "images/default_wallpaper.jpg"
         cached_folder = os.path.expandvars(r'%APPDATA%\Microsoft\Windows\Themes\CachedFiles\*')
         list_of_files = glob.glob(cached_folder)
         if list_of_files:
@@ -278,12 +279,12 @@ class Wallpaper:
             current_wallpaper = os.path.expandvars(
             r'%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper')
         try:
-            shutil.copy(current_wallpaper, default_wallpaper_path)
+            shutil.copy(current_wallpaper, DEFAULT_WALLPAPER_PATH)
         except FileNotFoundError:
             ubuf = ctypes.create_unicode_buffer(200)
             ctypes.windll.user32.SystemParametersInfoW(0x0073, 200, ubuf, 0)
             try:
-                shutil.copy(ubuf.value, default_wallpaper_path)
+                shutil.copy(ubuf.value, DEFAULT_WALLPAPER_PATH)
             except FileNotFoundError:
                 image = Image.new("RGB", (1,1))
-                image.save(default_wallpaper_path, "JPEG", quality=95)
+                image.save(DEFAULT_WALLPAPER_PATH, "JPEG", quality=100)

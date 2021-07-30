@@ -212,7 +212,7 @@ class SettingsWindow(QtWidgets.QDialog):
             lambda checked: self.foreground_size.setEnabled(checked))
 
         self.background_combo = QtWidgets.QComboBox()
-        self.background_combo.addItems(["Solid","Gradient","Art", "Wallpaper"])
+        self.background_combo.addItems(["Solid","Linear Gradient","Radial Gradient","Art", "Wallpaper"])
         self.main_layout.addRow("Background",self.background_combo)
         self.background_combo.setCurrentText(config.settings.get("background_type"))
         self.background_combo.currentIndexChanged.connect(self.background_setEnabled_check)
