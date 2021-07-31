@@ -1,8 +1,8 @@
-'''
+"""
 Classes in this file:
   SystemTrayIcon
   SettingsWindow
-'''
+"""
 
 from PySide2 import QtWidgets, QtGui, QtCore
 import os, glob, ctypes
@@ -10,12 +10,13 @@ import os, glob, ctypes
 from config import config  # object
 from wallpaper import Wallpaper
 
-VERSION = "v4.0-beta.1" #as tagged on github
+VERSION = "v4.0-beta.1"  # as tagged on github
+
 
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, icon, parent, signal):
         QtWidgets.QSystemTrayIcon.__init__(self, icon, parent)
-        self.setToolTip('AlbumPaper')
+        self.setToolTip("AlbumPaper")
         self.menu = QtWidgets.QMenu(parent)
         self.cursor = QtGui.QCursor()
         self.signal = signal
@@ -40,8 +41,12 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         help_latest = self.help_menu.addAction("Lastest Release")
         help_current = self.help_menu.addAction("This Release")
         github_link = "https://github.com/jac0b-w/AlbumPaper/"
-        help_latest.triggered.connect(self.open_link(f"{github_link}blob/master/README.md"))
-        help_current.triggered.connect(self.open_link(f"{github_link}blob/{VERSION}/README.md"))
+        help_latest.triggered.connect(
+            self.open_link(f"{github_link}blob/master/README.md")
+        )
+        help_current.triggered.connect(
+            self.open_link(f"{github_link}blob/{VERSION}/README.md")
+        )
 
         bug_report_item = self.menu.addAction("Bug Report")
         bug_report_item.triggered.connect(self.open_link(f"{github_link}issues"))
@@ -63,7 +68,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
         self.setContextMenu(self.menu)
         self.activated.connect(self.clicked)
-    
+
     def clicked(self, reason):
         if reason == self.Trigger:  # self.Trigger is left click
             self.contextMenu().setGeometry(*self.context_menu_pos())
@@ -87,7 +92,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         else:
             y = self.cursor.pos().y()
 
-        return x,y,menu_width,menu_height
+        return x, y, menu_width, menu_height
 
     def settings(self):
         self.settings_window.show()
@@ -95,36 +100,36 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
     def pause(self):
         self.is_paused = not self.is_paused
-        pause_text = {True:"Continue",False:"Pause"}[self.is_paused]
+        pause_text = {True: "Continue", False: "Pause"}[self.is_paused]
         self.pause_item.setText(pause_text)
-        icon = {False:"enabled",True:"disabled"}[self.is_paused]
+        icon = {False: "enabled", True: "disabled"}[self.is_paused]
         self.setIcon(QtGui.QIcon(f"assets/{icon}.png"))
         self.signal.pause_state.emit(self.is_paused)
-        
+
     def set_default_wallpaper(self):
         Wallpaper.set_default()
-        self.showMessage('Saved','Wallpaper saved as default')
+        self.showMessage("Saved", "Wallpaper saved as default")
 
-    def open_link(self,link):
+    def open_link(self, link):
         return lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(link))
 
     def exit(self, exit_code):
         def exit_function():
-            Wallpaper.set(is_default = True)
+            Wallpaper.set(is_default=True)
             QtWidgets.QApplication.exit(exit_code)
-        
+
         return exit_function
 
 
 class SettingsWindow(QtWidgets.QDialog):
     def __init__(self, tray_icon):
-        super(SettingsWindow,self).__init__()
+        super(SettingsWindow, self).__init__()
         self.tray_icon = tray_icon
         self.setWindowTitle("Settings")
         self.setFixedSize(470, 0)
         if os.path.exists("assets/settings_icon.png"):
             self.setWindowIcon(QtGui.QIcon("assets/settings_icon.png"))
-        
+
         self.main_layout = QtWidgets.QFormLayout()
         self.init_service_section()
         self.main_layout.addRow(QtWidgets.QLabel(""))
@@ -132,12 +137,12 @@ class SettingsWindow(QtWidgets.QDialog):
         self.main_layout.addRow(QtWidgets.QLabel(""))
         self.init_layer_section()
         self.main_layout.addRow(QtWidgets.QLabel(""))
-        
+
         # Save button
         self.save_button = QtWidgets.QPushButton("Save")
         self.save_button.clicked.connect(self.save)
         self.save_button.setDefault(True)
-        self.main_layout.addRow("",self.save_button)
+        self.main_layout.addRow("", self.save_button)
 
         try:
             self.setStyleSheet(config.theme["settings_window"])
@@ -146,14 +151,17 @@ class SettingsWindow(QtWidgets.QDialog):
 
         self.setLayout(self.main_layout)
 
-    def init_service_section(self): # https://stackoverflow.com/questions/11826036/pyside-show-hide-layouts
+    def init_service_section(
+        self,
+    ):  # https://stackoverflow.com/questions/11826036/pyside-show-hide-layouts
         self.service_combo = QtWidgets.QComboBox()
-        self.service_combo.addItems(["Spotify (recommended)","Last.fm"])
+        self.service_combo.addItems(["Spotify (recommended)", "Last.fm"])
         self.service_combo.currentIndexChanged.connect(
-            lambda index: self.api_keys_stacked.setCurrentIndex(index))
-        index = {"spotify":0,"last.fm":1}[config.settings["service"]]
-        self.main_layout.addRow("Service",self.service_combo)
-        
+            lambda index: self.api_keys_stacked.setCurrentIndex(index)
+        )
+        index = {"spotify": 0, "last.fm": 1}[config.settings["service"]]
+        self.main_layout.addRow("Service", self.service_combo)
+
         self.api_keys_stacked = QtWidgets.QStackedWidget()
         self.api_keys_stacked.setCurrentIndex(index)
         self.main_layout.addRow(self.api_keys_stacked)
@@ -171,8 +179,8 @@ class SettingsWindow(QtWidgets.QDialog):
         self.api_keys_stacked.addWidget(widget)
         layout = QtWidgets.QFormLayout()
         widget.setLayout(layout)
-        layout.addRow("Client ID",self.spotify_client_id)
-        layout.addRow("Client Secret",self.spotify_client_secret)
+        layout.addRow("Client ID", self.spotify_client_id)
+        layout.addRow("Client Secret", self.spotify_client_secret)
 
         # last.fm section
         self.lastfm_username = QtWidgets.QLineEdit()
@@ -187,45 +195,54 @@ class SettingsWindow(QtWidgets.QDialog):
         self.api_keys_stacked.addWidget(widget)
         layout = QtWidgets.QFormLayout()
         widget.setLayout(layout)
-        layout.addRow("Username",self.lastfm_username)
-        layout.addRow("API Key",self.lastfm_api_key)
+        layout.addRow("Username", self.lastfm_username)
+        layout.addRow("API Key", self.lastfm_api_key)
 
         self.service_combo.setCurrentIndex(index)
         help_link = QtWidgets.QLabel(
-            f'<a href="https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys">'\
-            'Where do I find API keys?</a>')
+            f'<a href="https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys">'
+            "Where do I find API keys?</a>"
+        )
         help_link.linkActivated.connect(
-            lambda link: QtGui.QDesktopServices.openUrl(QtCore.QUrl(link)))
+            lambda link: QtGui.QDesktopServices.openUrl(QtCore.QUrl(link))
+        )
         self.main_layout.addRow(help_link)
 
     def init_layer_section(self):
         self.foreground_checkbox = QtWidgets.QCheckBox()
-        self.main_layout.addRow("Foreground Art",self.foreground_checkbox)
-        self.foreground_checkbox.setChecked(config.settings.getboolean("foreground_enabled"))
-        
+        self.main_layout.addRow("Foreground Art", self.foreground_checkbox)
+        self.foreground_checkbox.setChecked(
+            config.settings.getboolean("foreground_enabled")
+        )
+
         self.foreground_size = QtWidgets.QSpinBox()
-        self.foreground_size.setRange(1,10_000)
-        self.main_layout.addRow("Art Size",self.foreground_size)
+        self.foreground_size.setRange(1, 10_000)
+        self.main_layout.addRow("Art Size", self.foreground_size)
         self.foreground_size.setValue(config.settings.getint("foreground_size"))
         self.foreground_size.setEnabled(self.foreground_checkbox.isChecked())
         self.foreground_checkbox.stateChanged.connect(
-            lambda checked: self.foreground_size.setEnabled(checked))
+            lambda checked: self.foreground_size.setEnabled(checked)
+        )
 
         self.background_combo = QtWidgets.QComboBox()
-        self.background_combo.addItems(["Solid","Linear Gradient","Radial Gradient","Art", "Wallpaper"])
-        self.main_layout.addRow("Background",self.background_combo)
+        self.background_combo.addItems(
+            ["Solid", "Linear Gradient", "Radial Gradient", "Art", "Wallpaper"]
+        )
+        self.main_layout.addRow("Background", self.background_combo)
         self.background_combo.setCurrentText(config.settings.get("background_type"))
-        self.background_combo.currentIndexChanged.connect(self.background_setEnabled_check)
+        self.background_combo.currentIndexChanged.connect(
+            self.background_setEnabled_check
+        )
 
         self.blur_checkbox = QtWidgets.QCheckBox()
-        self.main_layout.addRow("Background Blur",self.blur_checkbox)
+        self.main_layout.addRow("Background Blur", self.blur_checkbox)
         self.blur_checkbox.setChecked(config.settings.getboolean("blur_enabled"))
         self.blur_checkbox.stateChanged.connect(self.background_setEnabled_check)
 
         self.blur_strength = QtWidgets.QDoubleSpinBox()
-        self.blur_strength.setRange(0.0,100.0)
+        self.blur_strength.setRange(0.0, 100.0)
         self.blur_strength.setSingleStep(0.5)
-        self.main_layout.addRow("Blur Strength",self.blur_strength)
+        self.main_layout.addRow("Blur Strength", self.blur_strength)
         self.blur_strength.setValue(config.settings.getfloat("blur_strength"))
 
         self.background_setEnabled_check()
@@ -237,17 +254,18 @@ class SettingsWindow(QtWidgets.QDialog):
         for theme in themes:
             self.theme_selector.addItem(theme)
         self.theme_selector.setCurrentIndex(
-            self.theme_selector.findText(config.settings["theme"],
-            QtCore.Qt.MatchFixedString)
+            self.theme_selector.findText(
+                config.settings["theme"], QtCore.Qt.MatchFixedString
+            )
         )
-        self.main_layout.addRow("Theme",self.theme_selector)
+        self.main_layout.addRow("Theme", self.theme_selector)
 
         self.edit_theme_button = QtWidgets.QPushButton("Edit Themes")
         self.edit_theme_button.clicked.connect(self.edit_themes)
-        self.main_layout.addRow("",self.edit_theme_button)
+        self.main_layout.addRow("", self.edit_theme_button)
 
     def save(self):
-        service = ["spotify","last.fm"][self.service_combo.currentIndex()]
+        service = ["spotify", "last.fm"][self.service_combo.currentIndex()]
         config.settings["service"] = service
 
         config.spotify["client_id"] = self.spotify_client_id.text()
@@ -257,7 +275,9 @@ class SettingsWindow(QtWidgets.QDialog):
         config.lastfm["username"] = self.lastfm_username.text()
 
         # layer settings
-        config.settings["foreground_enabled"] = str(self.foreground_checkbox.isChecked())
+        config.settings["foreground_enabled"] = str(
+            self.foreground_checkbox.isChecked()
+        )
         config.settings["foreground_size"] = str(self.foreground_size.value())
         config.settings["background_type"] = self.background_combo.currentText()
         config.settings["blur_enabled"] = str(self.blur_checkbox.isChecked())
@@ -282,7 +302,8 @@ class SettingsWindow(QtWidgets.QDialog):
         Show blur option when 'Wallpaper' or 'Art' background options
         are selected
         """
-        self.blur_checkbox.setEnabled(self.background_combo.currentIndex() in (2,3))
+        self.blur_checkbox.setEnabled(self.background_combo.currentIndex() in (2, 3))
         self.blur_strength.setEnabled(
-            self.background_combo.currentIndex() in (2,3) and self.blur_checkbox.isChecked()
+            self.background_combo.currentIndex() in (2, 3)
+            and self.blur_checkbox.isChecked()
         )

@@ -1,10 +1,12 @@
-#https://stackoverflow.com/questions/8799646/preventing-multiple-instances-of-my-application
+# https://stackoverflow.com/questions/8799646/preventing-multiple-instances-of-my-application
 
 import ctypes
 from ctypes import wintypes
 
+
 class MutexNotAquiredError(Exception):
     pass
+
 
 class NamedMutex:
     create_mutex = ctypes.windll.kernel32.CreateMutexA
