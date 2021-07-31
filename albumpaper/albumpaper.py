@@ -30,7 +30,7 @@ def spotify_auth():
     token = token_info["access_token"]
 
     try:
-        return spotipy.Spotify(auth=token),sp_oauth,token_info
+        return spotipy.Spotify(auth=token), sp_oauth, token_info
     except Exception:
         print("User token could not be created")
         sys.exit()
@@ -163,7 +163,7 @@ class Worker(QtCore.QThread):
     def run(self):
         try:
             self.sleep = threading.Event()  # improves pause responsiveness
-            self.is_paused = False
+            self.pause_state(False) # makes continue button work first time
 
             if config.settings["service"] == "spotify":
                 sp, *__ = spotify_auth()
