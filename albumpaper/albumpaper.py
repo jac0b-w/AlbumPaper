@@ -27,14 +27,21 @@ def spotify_auth():
         show_dialog=True,
     )
 
-    token_info = sp_oauth.get_access_token(as_dict=True)
-    token = token_info["access_token"]
+    try:
+        token_info = sp_oauth.get_access_token(as_dict=True)
+        token = token_info["access_token"]
+    except spotipy.oauth2.SpotifyOauthError as e:
+        tray_icon.showMessage("Authentication Error", e.error_description)
+        config.spotify["client_secret"] = ""
+        config.save()
+        threading.Event().wait(3)
+        QtWidgets.QApplication.exit(0)
 
     try:
+        print("Token created")
         return spotipy.Spotify(auth=token), sp_oauth, token_info
-    except Exception:
-        print("User token could not be created")
-        sys.exit()
+    except Exception as e:
+        raise e
 
 
 def check_file(*paths, quit_if_missing=True):
