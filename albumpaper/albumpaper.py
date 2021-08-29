@@ -6,14 +6,14 @@ from io import BytesIO
 
 # In this directory
 from ui import SystemTrayIcon, SettingsWindow
-from config import config  # object
+from config import ConfigManager, ConfigValidationError
 from wallpaper import Wallpaper, GenerateWallpaper
 from mutex import MutexNotAquiredError, NamedMutex
 
 
 def spotify_auth():
-    client_id = config.spotify["client_id"]
-    client_secret = config.spotify["client_secret"]
+    client_id = ConfigManager.services["spotify"]["client_id"]
+    client_secret = ConfigManager.services["spotify"]["client_secret"]
 
     redirect_uri = "http://localhost:8080/"
     scope = "user-read-currently-playing"
@@ -32,13 +32,15 @@ def spotify_auth():
         token = token_info["access_token"]
     except spotipy.oauth2.SpotifyOauthError as e:
         tray_icon.showMessage("Authentication Error", e.error_description)
-        config.spotify["client_secret"] = ""
-        config.save()
+        ConfigManager.services["spotify"]["client_secret"] = ""
+        try:
+            ConfigManager.save()
+        except ConfigValidationError as e:
+            tray_icon.showMessage('Set valid Spotify client secret', '')
         threading.Event().wait(3)
         QtWidgets.QApplication.exit(0)
 
     try:
-        print("Token created")
         return spotipy.Spotify(auth=token), sp_oauth, token_info
     except Exception as e:
         raise e
@@ -99,8 +101,8 @@ class CurrentArt:
             payload = {
                 "method": "user.getRecentTracks",
                 "limit": 1,
-                "user": config.lastfm["username"],
-                "api_key": config.lastfm["api_key"],
+                "user": ConfigManager.services["last.fm"]["username"],
+                "api_key": ConfigManager.services["last.fm"]["api_key"],
                 "format": "json",
             }
 
@@ -179,13 +181,13 @@ class Worker(QtCore.QThread):
             self.sleep = threading.Event()  # improves pause responsiveness
             self.pause_state(False)  # makes continue button work first time
 
-            if config.settings["service"] == "spotify":
+            if ConfigManager.settings["service"]["name"] == "spotify":
                 sp, *__ = spotify_auth()
                 get_art = CurrentArt(sp)
             else:
                 get_art = CurrentArt()
 
-            request_interval = config.settings.getfloat("request_interval")
+            request_interval = ConfigManager.settings["service"]["request_interval"]
 
             generate_wallpaper = GenerateWallpaper(app)
 
@@ -278,7 +280,13 @@ if __name__ in "__main__":
             )
             check_file("assets/settings_icon.png", quit_if_missing=False)
 
-            if config.check_valid(tray_icon):
+            try:
+                ConfigManager.validate_service()
+            except ConfigValidationError as e:
+                tray_icon.showMessage(e.message, '')
+                settings_window = SettingsWindow(tray_icon)
+                exit_code = settings_window.exec_()
+            else:
                 thread = Worker()
                 signal.pause_state.connect(thread.pause_state)
                 thread.finished.connect(app.exit)
@@ -287,9 +295,6 @@ if __name__ in "__main__":
                 exit_code = app.exec_()
 
                 thread.terminate()
-            else:
-                settings_window = SettingsWindow(tray_icon)
-                exit_code = settings_window.exec_()
 
         except Exception as e:
             app_log.exception("main error")

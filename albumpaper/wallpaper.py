@@ -10,7 +10,7 @@ Classes in this file:
 
 import os, ctypes, glob, shutil, collections, time, numpy, scipy.cluster, sklearn.cluster
 from PIL import Image, ImageFilter
-from config import config  # object
+from config import ConfigManager
 
 # rust functions
 from albumpaper_imagegen import linear_gradient, radial_gradient
@@ -33,8 +33,8 @@ def timer(func):
 
 class GenerateWallpaper:
     def __init__(self, app):
-        self.foreground_size = config.settings.getint("foreground_size")
-        background_type = config.settings.get("background_type")
+        self.foreground_size = ConfigManager.settings["foreground"]["size"]
+        background_type = ConfigManager.settings["background"]["type"]
         self.gen_background = {
             "Solid": self.color_background,
             "Linear Gradient": self.linear_gradient_background,
@@ -43,10 +43,10 @@ class GenerateWallpaper:
             "Wallpaper": self.wallpaper_background,
         }[background_type]
 
-        self.blur_enabled = config.settings.getboolean("blur_enabled")
-        self.blur_strength = config.settings.getfloat("blur_strength")
+        self.blur_enabled = ConfigManager.settings["background"]["blur_enabled"]
+        self.blur_strength = ConfigManager.settings["background"]["blur_strength"]
 
-        self.foreground_enabled = config.settings.getboolean("foreground_enabled")
+        self.foreground_enabled = ConfigManager.settings["foreground"]["enabled"]
 
         Geometry = collections.namedtuple("Geometry", ["w", "h", "left", "top"])
         dw = app.primaryScreen()
@@ -282,7 +282,7 @@ class Wallpaper:
         file_name = DEFAULT_WALLPAPER_PATH if is_default else GENERATED_WALLPAPER_PATH
         abs_path = os.path.abspath(file_name)
         ctypes.windll.user32.SystemParametersInfoW(20, 0, abs_path, 0)
-        print("NEW WALLPAPER SET")
+        print("WALLPAPER SET: " + ("Default" if is_default else "Generated"))
 
     @staticmethod
     def set_default():

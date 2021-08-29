@@ -7,7 +7,7 @@ Classes in this file:
 from PySide2 import QtWidgets, QtGui, QtCore
 import os, glob, ctypes
 
-from config import config  # object
+from config import ConfigManager, ConfigValidationError
 from wallpaper import Wallpaper
 
 VERSION = "v4.0-beta.1"  # as tagged on github
@@ -22,7 +22,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.signal = signal
 
         try:
-            self.menu.setStyleSheet(config.theme["menu"])
+            self.menu.setStyleSheet(ConfigManager.theme()["menu"])
         except KeyError:
             pass
 
@@ -145,7 +145,7 @@ class SettingsWindow(QtWidgets.QDialog):
         self.main_layout.addRow("", self.save_button)
 
         try:
-            self.setStyleSheet(config.theme["settings_window"])
+            self.setStyleSheet(ConfigManager.theme()["settings_window"])
         except KeyError:
             pass
 
@@ -159,7 +159,7 @@ class SettingsWindow(QtWidgets.QDialog):
         self.service_combo.currentIndexChanged.connect(
             lambda index: self.api_keys_stacked.setCurrentIndex(index)
         )
-        index = {"spotify": 0, "last.fm": 1}[config.settings["service"]]
+        index = {"spotify": 0, "last.fm": 1}[ConfigManager.settings["service"]["name"]]
         self.main_layout.addRow("Service", self.service_combo)
 
         self.api_keys_stacked = QtWidgets.QStackedWidget()
@@ -172,8 +172,10 @@ class SettingsWindow(QtWidgets.QDialog):
         self.spotify_client_secret.setPlaceholderText("Client Secret")
         self.spotify_client_id.setMaxLength(32)
         self.spotify_client_secret.setMaxLength(32)
-        self.spotify_client_id.setText(config.spotify["client_id"])
-        self.spotify_client_secret.setText(config.spotify["client_secret"])
+        self.spotify_client_id.setText(ConfigManager.services["spotify"]["client_id"])
+        self.spotify_client_secret.setText(
+            ConfigManager.services["spotify"]["client_secret"]
+        )
 
         widget = QtWidgets.QWidget()
         self.api_keys_stacked.addWidget(widget)
@@ -188,8 +190,8 @@ class SettingsWindow(QtWidgets.QDialog):
         self.lastfm_username.setPlaceholderText("Username")
         self.lastfm_api_key.setPlaceholderText("API Key")
         self.lastfm_api_key.setMaxLength(32)
-        self.lastfm_username.setText(config.lastfm["username"])
-        self.lastfm_api_key.setText(config.lastfm["api_key"])
+        self.lastfm_username.setText(ConfigManager.services["last.fm"]["username"])
+        self.lastfm_api_key.setText(ConfigManager.services["last.fm"]["api_key"])
 
         widget = QtWidgets.QWidget()
         self.api_keys_stacked.addWidget(widget)
@@ -212,16 +214,16 @@ class SettingsWindow(QtWidgets.QDialog):
         self.foreground_checkbox = QtWidgets.QCheckBox()
         self.main_layout.addRow("Foreground Art", self.foreground_checkbox)
         self.foreground_checkbox.setChecked(
-            config.settings.getboolean("foreground_enabled")
+            ConfigManager.settings["foreground"]["enabled"]
         )
 
         self.foreground_size = QtWidgets.QSpinBox()
         self.foreground_size.setRange(1, 10_000)
         self.main_layout.addRow("Art Size", self.foreground_size)
-        self.foreground_size.setValue(config.settings.getint("foreground_size"))
+        self.foreground_size.setValue(ConfigManager.settings["foreground"]["size"])
         self.foreground_size.setEnabled(self.foreground_checkbox.isChecked())
         self.foreground_checkbox.stateChanged.connect(
-            lambda checked: self.foreground_size.setEnabled(checked)
+            lambda checked: self.foreground_size.setVisible(checked)
         )
 
         self.background_combo = QtWidgets.QComboBox()
@@ -229,21 +231,27 @@ class SettingsWindow(QtWidgets.QDialog):
             ["Solid", "Linear Gradient", "Radial Gradient", "Art", "Wallpaper"]
         )
         self.main_layout.addRow("Background", self.background_combo)
-        self.background_combo.setCurrentText(config.settings.get("background_type"))
+        self.background_combo.setCurrentText(
+            ConfigManager.settings["background"]["type"]
+        )
         self.background_combo.currentIndexChanged.connect(
             self.background_setEnabled_check
         )
 
         self.blur_checkbox = QtWidgets.QCheckBox()
         self.main_layout.addRow("Background Blur", self.blur_checkbox)
-        self.blur_checkbox.setChecked(config.settings.getboolean("blur_enabled"))
+        self.blur_checkbox.setChecked(
+            ConfigManager.settings["background"]["blur_enabled"]
+        )
         self.blur_checkbox.stateChanged.connect(self.background_setEnabled_check)
 
         self.blur_strength = QtWidgets.QDoubleSpinBox()
-        self.blur_strength.setRange(0.0, 100.0)
+        self.blur_strength.setRange(0.5, 100.0)
         self.blur_strength.setSingleStep(0.5)
         self.main_layout.addRow("Blur Strength", self.blur_strength)
-        self.blur_strength.setValue(config.settings.getfloat("blur_strength"))
+        self.blur_strength.setValue(
+            ConfigManager.settings["background"]["blur_strength"]
+        )
 
         self.background_setEnabled_check()
 
@@ -255,7 +263,7 @@ class SettingsWindow(QtWidgets.QDialog):
             self.theme_selector.addItem(theme)
         self.theme_selector.setCurrentIndex(
             self.theme_selector.findText(
-                config.settings["theme"], QtCore.Qt.MatchFixedString
+                ConfigManager.settings["theme"]["name"], QtCore.Qt.MatchFixedString
             )
         )
         self.main_layout.addRow("Theme", self.theme_selector)
@@ -266,27 +274,38 @@ class SettingsWindow(QtWidgets.QDialog):
 
     def save(self):
         service = ["spotify", "last.fm"][self.service_combo.currentIndex()]
-        config.settings["service"] = service
+        ConfigManager.settings["service"]["name"] = service
 
-        config.spotify["client_id"] = self.spotify_client_id.text()
-        config.spotify["client_secret"] = self.spotify_client_secret.text()
+        ConfigManager.services["spotify"]["client_id"] = self.spotify_client_id.text()
+        ConfigManager.services["spotify"][
+            "client_secret"
+        ] = self.spotify_client_secret.text()
 
-        config.lastfm["api_key"] = self.lastfm_api_key.text()
-        config.lastfm["username"] = self.lastfm_username.text()
+        ConfigManager.services["last.fm"]["api_key"] = self.lastfm_api_key.text()
+        ConfigManager.services["last.fm"]["username"] = self.lastfm_username.text()
 
         # layer settings
-        config.settings["foreground_enabled"] = str(
-            self.foreground_checkbox.isChecked()
-        )
-        config.settings["foreground_size"] = str(self.foreground_size.value())
-        config.settings["background_type"] = self.background_combo.currentText()
-        config.settings["blur_enabled"] = str(self.blur_checkbox.isChecked())
-        config.settings["blur_strength"] = str(self.blur_strength.value())
+        ConfigManager.settings["foreground"][
+            "enabled"
+        ] = self.foreground_checkbox.isChecked()
+        ConfigManager.settings["foreground"]["size"] = self.foreground_size.value()
+        ConfigManager.settings["background"][
+            "type"
+        ] = self.background_combo.currentText()
+        ConfigManager.settings["background"][
+            "blur_enabled"
+        ] = self.blur_checkbox.isChecked()
+        ConfigManager.settings["background"][
+            "blur_strength"
+        ] = self.blur_strength.value()
 
-        config.settings["theme"] = self.theme_selector.currentText()
+        ConfigManager.settings["theme"]["name"] = self.theme_selector.currentText()
 
-        if config.check_valid(self.tray_icon):
-            config.save()  # save settings.ini and services.ini
+        try:
+            ConfigManager.save()  # save settings.ini and services.ini
+        except ConfigValidationError as e:
+            self.tray_icon.showMessage(e.message, "")
+        else:
             self.accept()
             QtWidgets.QApplication.exit(1)  # send restart exit code
 
@@ -299,7 +318,7 @@ class SettingsWindow(QtWidgets.QDialog):
 
     def background_setEnabled_check(self):
         """
-        Show blur option when 'Wallpaper' or 'Art' background options
+        Show blur option only when 'Wallpaper' or 'Art' background options
         are selected
         """
         self.blur_checkbox.setEnabled(self.background_combo.currentIndex() in (2, 3))
