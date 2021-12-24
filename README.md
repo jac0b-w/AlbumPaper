@@ -1,6 +1,4 @@
-# AlbumPaper (Windows 10)
-
-**AlbumPaper only currently works with Windows 10**
+# AlbumPaper
 
 This is a system tray app for windows that will change your desktop wallpaper based on the track you are listening to.
 Works with Spotify or Last.fm.
