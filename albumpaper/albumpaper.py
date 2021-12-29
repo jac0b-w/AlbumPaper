@@ -1,5 +1,5 @@
 # external imports
-import os, sys, spotipy, requests, logging, logging.handlers, threading
+import os, sys, spotipy, requests, logging, logging.handlers, threading, pkg_resources
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
 from io import BytesIO
@@ -9,6 +9,8 @@ from ui import SystemTrayIcon, SettingsWindow
 from config import ConfigManager, ConfigValidationError
 from wallpaper import Wallpaper, GenerateWallpaper
 from mutex import MutexNotAquiredError, NamedMutex
+
+VERSION = "v4.0-beta.1"  # as tagged on github
 
 
 def spotify_auth():
@@ -36,7 +38,7 @@ def spotify_auth():
         try:
             ConfigManager.save()
         except ConfigValidationError as e:
-            tray_icon.showMessage('Set valid Spotify client secret', '')
+            tray_icon.showMessage("Set valid Spotify client secret", "")
         threading.Event().wait(3)
         QtWidgets.QApplication.exit(0)
 
@@ -53,6 +55,31 @@ def check_file(*paths, quit_if_missing=True):
             app_log.error(f"Missing file: {path}")
             if quit_if_missing:
                 sys.exit()
+
+
+"""
+Displays a toast message if a new release is detected
+"""
+
+
+def check_for_updates(tray_icon):
+    if not ConfigManager.settings["updates"]["check_for_updates"]:
+        return
+
+    try:
+        response = requests.get(
+            "https://api.github.com/repos/jac0b-w/AlbumPaper/releases/latest"
+        )
+        latest_version: str = response.json()["tag_name"]
+    except Exception:
+        return
+    if any(substring in latest_version for substring in ["alpha", "beta"]):
+        return
+
+    if pkg_resources.parse_version(VERSION) < pkg_resources.parse_version(
+        latest_version
+    ):
+        tray_icon.showMessage("New update", f"Update {latest_version} avaliable")
 
 
 class CurrentArt:
@@ -254,7 +281,10 @@ if __name__ in "__main__":
             signal = WorkerSignals()
 
             tray_icon = SystemTrayIcon(
-                icon=QtGui.QIcon("assets/enabled.png"), parent=widget, signal=signal
+                icon=QtGui.QIcon("assets/enabled.png"),
+                parent=widget,
+                signal=signal,
+                version=VERSION,
             )
 
             try:
@@ -280,10 +310,12 @@ if __name__ in "__main__":
             )
             check_file("assets/settings_icon.png", quit_if_missing=False)
 
+            check_for_updates(tray_icon=tray_icon)
+
             try:
                 ConfigManager.validate_service()
             except ConfigValidationError as e:
-                tray_icon.showMessage(e.message, '')
+                tray_icon.showMessage(e.message, "")
                 settings_window = SettingsWindow(tray_icon)
                 exit_code = settings_window.exec_()
             else:

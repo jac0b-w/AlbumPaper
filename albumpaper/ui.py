@@ -10,16 +10,14 @@ import os, glob, ctypes
 from config import ConfigManager, ConfigValidationError
 from wallpaper import Wallpaper
 
-VERSION = "v4.0-beta.1"  # as tagged on github
-
-
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
-    def __init__(self, icon, parent, signal):
+    def __init__(self, icon, parent, signal, version):
         QtWidgets.QSystemTrayIcon.__init__(self, icon, parent)
         self.setToolTip("AlbumPaper")
         self.menu = QtWidgets.QMenu(parent)
         self.cursor = QtGui.QCursor()
         self.signal = signal
+        self.VERSION = version
 
         try:
             self.menu.setStyleSheet(ConfigManager.theme()["menu"])
@@ -45,13 +43,13 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
             self.open_link(f"{github_link}blob/master/README.md")
         )
         help_current.triggered.connect(
-            self.open_link(f"{github_link}blob/{VERSION}/README.md")
+            self.open_link(f"{github_link}blob/{self.VERSION}/README.md")
         )
 
         bug_report_item = self.menu.addAction("Bug Report")
         bug_report_item.triggered.connect(self.open_link(f"{github_link}issues"))
 
-        release_item = self.menu.addAction(f"{VERSION}")
+        release_item = self.menu.addAction(f"{self.VERSION}")
         release_item.triggered.connect(self.open_link(f"{github_link}releases"))
 
         self.menu.addSeparator()
