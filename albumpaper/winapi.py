@@ -1,8 +1,8 @@
-# https://stackoverflow.com/questions/8799646/preventing-multiple-instances-of-my-application
 
 import ctypes
 from ctypes import wintypes
 
+# https://stackoverflow.com/questions/8799646/preventing-multiple-instances-of-my-application
 
 class MutexNotAquiredError(Exception):
     pass
@@ -33,3 +33,29 @@ class NamedMutex:
     def release(self):
         self.release_mutex(self.handle)
         self.close_handle(self.handle)
+
+
+# https://stackoverflow.com/a/6156606/7274182
+# https://docs.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-system_power_status
+class SYSTEM_POWER_STATUS(ctypes.Structure):
+    _fields_ = [
+        ('ACLineStatus', wintypes.BYTE),
+        ('BatteryFlag', wintypes.BYTE),
+        ('BatteryLifePercent', wintypes.BYTE),
+        ('SystemStatusFlag', wintypes.BYTE),
+        ('BatteryLifeTime', wintypes.DWORD),
+        ('BatteryFullLifeTime', wintypes.DWORD),
+    ]
+
+def battery_saver_enabled() -> bool:
+    SYSTEM_POWER_STATUS_P = ctypes.POINTER(SYSTEM_POWER_STATUS)
+
+    GetSystemPowerStatus = ctypes.windll.kernel32.GetSystemPowerStatus
+    GetSystemPowerStatus.argtypes = [SYSTEM_POWER_STATUS_P]
+    GetSystemPowerStatus.restype = wintypes.BOOL
+
+    status = SYSTEM_POWER_STATUS()
+
+    return bool(status.SystemStatusFlag)
+
+print(battery_saver_enabled())

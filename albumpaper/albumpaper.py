@@ -8,7 +8,7 @@ from io import BytesIO
 from ui import SystemTrayIcon, SettingsWindow
 from config import ConfigManager, ConfigValidationError
 from wallpaper import Wallpaper, GenerateWallpaper
-from mutex import MutexNotAquiredError, NamedMutex
+import winapi
 
 VERSION = "v4.0-beta.1"  # as tagged on github
 
@@ -17,14 +17,11 @@ def spotify_auth():
     client_id = ConfigManager.services["spotify"]["client_id"]
     client_secret = ConfigManager.services["spotify"]["client_secret"]
 
-    redirect_uri = "http://localhost:8080/"
-    scope = "user-read-currently-playing"
-
     sp_oauth = spotipy.SpotifyOAuth(
         client_id,
         client_secret,
-        redirect_uri=redirect_uri,
-        scope=scope,
+        redirect_uri="http://localhost:8080/",
+        scope="user-read-currently-playing",
         cache_path=f".cache-{client_id[:4]}{client_secret[:4]}",
         show_dialog=True,
     )
@@ -208,6 +205,8 @@ class Worker(QtCore.QThread):
             self.sleep = threading.Event()  # improves pause responsiveness
             self.pause_state(False)  # makes continue button work first time
 
+            self.disable_on_battery_saver = ConfigManager.settings["power"]["disable_on_battery_saver"]
+
             if ConfigManager.settings["service"]["name"] == "spotify":
                 sp, *__ = spotify_auth()
                 get_art = CurrentArt(sp)
@@ -216,17 +215,18 @@ class Worker(QtCore.QThread):
 
             request_interval = ConfigManager.settings["service"]["request_interval"]
 
-            generate_wallpaper = GenerateWallpaper(app)
+            wallaper_generator = GenerateWallpaper(app)
 
             while True:
                 image = get_art.get_current_art()
-                generate_wallpaper(image)
-
+                wallaper_generator(image)
                 if self.is_paused:
                     self.sleep.wait()
                     get_art.previous_image_url = None
                 else:
                     self.sleep.wait(request_interval)
+                    if self.disable_on_battery_saver and winapi.battery_saver_enabled():
+                        self.pause_state(True)
 
         except Exception as e:
             app_log.exception("worker error")
@@ -288,8 +288,8 @@ if __name__ in "__main__":
             )
 
             try:
-                mutex = NamedMutex(b"AlbumPaper")
-            except MutexNotAquiredError:
+                mutex = winapi.NamedMutex(b"AlbumPaper")
+            except winapi.MutexNotAquiredError:
                 tray_icon.showMessage("App already open", "")
                 sys.exit()
 
