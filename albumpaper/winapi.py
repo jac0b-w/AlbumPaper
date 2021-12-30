@@ -56,6 +56,6 @@ def battery_saver_enabled() -> bool:
 
     status = SYSTEM_POWER_STATUS()
 
+    if not GetSystemPowerStatus(ctypes.pointer(status)):
+        return False
     return bool(status.SystemStatusFlag)
-
-print(battery_saver_enabled())
