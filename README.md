@@ -16,8 +16,12 @@ There is a short initial setup:
 
 1. Start the app (This takes a while ~15s). A music note icon will appear in the system tray and a window will open prompting you to select your service (Spotify or Last.fm) and enter your [API keys](https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys)
 2. Press 'Save' and start the app again.
-    - If you are using the Spotify service this time your browser will open prompting you to login to your Spotify account.
+    - If you are using the Spotify your browser will open prompting you to login to your Spotify account. 
 3. Start playing music and your desktop wallpaper will change, you can click the icon in the system tray for more options.
+    - For some people this doesn't always work first time. Here are some troubleshooting tips you can try:
+        - Quit the app and open it again
+        - Restart your pc
+        - Failing that please create an issue
 
 If you are running the source you will also need to **(this is not required if you are using the installer)**:
 
