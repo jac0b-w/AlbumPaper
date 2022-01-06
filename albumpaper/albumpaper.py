@@ -45,15 +45,6 @@ def spotify_auth():
         raise e
 
 
-def check_file(*paths, quit_if_missing=True):
-    for path in paths:
-        if not os.path.exists(path):
-            tray_icon.showMessage("Missing file", f"Can't find {path}")
-            app_log.error(f"Missing file: {path}")
-            if quit_if_missing:
-                sys.exit()
-
-
 """
 Displays a toast message if a new release is detected
 """
@@ -154,7 +145,6 @@ class CurrentArt:
 
     @staticmethod
     def download_image(url: str) -> Image.Image:
-        print("IMAGE DOWNLOADED")
         response = requests.get(url)
         return Image.open(BytesIO(response.content)).convert("RGB")
 
@@ -193,54 +183,135 @@ class CurrentArt:
                 return art
 
 
+class BatterySaverCheckThread(QtCore.QThread):
+    # https://stackoverflow.com/a/33150936
+    def __init__(self, worker_signals, parent=None):
+        QtCore.QThread.__init__(self, parent)
+        self.worker_signals = worker_signals
+
+    def run(self):
+        try:
+            # if disable_on_battery_saver disabled then kill this thread
+            if not ConfigManager.settings["power"]["disable_on_battery_saver"]:
+                return
+
+            self.sleep = threading.Event()
+            battery_saver_enabled_previous = None
+            while True:
+                battery_saver_enabled = winapi.battery_saver_enabled()
+                # To prevent constantly setting desktop to default/generated
+                # TODO implement a more elegant solution
+                if battery_saver_enabled_previous is not battery_saver_enabled:
+                    self.worker_signals.battery_saver_state.emit(battery_saver_enabled)
+
+                battery_saver_enabled_previous = battery_saver_enabled
+                self.sleep.wait(1)
+        except Exception as e:
+            app_log.exception("BatterySaverCheck Error")
+            if __debug__:
+                raise e
+
+
 class WorkerSignals(QtCore.QObject):
     pause_state = QtCore.Signal(bool)
+    battery_saver_state = QtCore.Signal(bool)
 
 
-class Worker(QtCore.QThread):
-    # Worker thread
-    @QtCore.Slot()
+class WorkerThread(QtCore.QThread):
     def run(self):
         try:
             self.sleep = threading.Event()  # improves pause responsiveness
-            self.pause_state(False)  # makes continue button work first time
+            # self.pause_state(False)  # makes continue button work first time
 
-            self.disable_on_battery_saver = ConfigManager.settings["power"]["disable_on_battery_saver"]
+            self._pause_request = False
+            self._battery_saver = (
+                winapi.battery_saver_enabled()
+                and not ConfigManager.settings["power"]["disable_on_battery_saver"]
+            )
+
+            self.disabled = False
 
             if ConfigManager.settings["service"]["name"] == "spotify":
                 sp, *__ = spotify_auth()
-                get_art = CurrentArt(sp)
+                self.get_art = CurrentArt(sp)
             else:
-                get_art = CurrentArt()
+                self.get_art = CurrentArt()
 
             request_interval = ConfigManager.settings["service"]["request_interval"]
 
             wallaper_generator = GenerateWallpaper(app)
 
             while True:
-                image = get_art.get_current_art()
-                wallaper_generator(image)
-                if self.is_paused:
+                if self.disabled:
                     self.sleep.wait()
-                    get_art.previous_image_url = None
-                else:
-                    self.sleep.wait(request_interval)
-                    if self.disable_on_battery_saver and winapi.battery_saver_enabled():
-                        self.pause_state(True)
+
+                image = self.get_art.get_current_art()
+                wallaper_generator(image)
+                self.sleep.wait(request_interval)
 
         except Exception as e:
-            app_log.exception("worker error")
+            app_log.exception("Worker Error")
             if __debug__:
                 raise e
 
-    @QtCore.Slot(bool)
-    def pause_state(self, is_paused: bool):
-        self.is_paused = is_paused
-        if is_paused:
+    def check_state(self):
+        self.disabled = self._pause_request or self._battery_saver
+        if self.disabled:
             self.sleep.clear()
             Wallpaper.set(is_default=True)
         else:
             self.sleep.set()
+            try:
+                self.get_art.previous_image_url = None
+            except AttributeError:
+                pass
+
+    @QtCore.Slot(bool)
+    def pause_state(self, pause_request: bool):
+        self._pause_request = pause_request
+        self.check_state()
+
+    @QtCore.Slot(bool)
+    def battery_saver_state(self, enabled: bool):
+        self._battery_saver = enabled
+        self.check_state()
+
+
+"""
+Some methods to run when the program starts
+"""
+
+
+class OnStartup:
+    @staticmethod
+    def start_logger():
+        try:
+            handler = logging.handlers.RotatingFileHandler(
+                "errors.log",
+                maxBytes=500 * 1024,  # 500 kB
+                backupCount=1,
+            )
+            handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+            handler.setLevel(logging.ERROR)
+            app_log = logging.getLogger("root")
+            app_log.setLevel(logging.ERROR)
+            app_log.addHandler(handler)
+            return app_log
+
+        except Exception as e:
+            if __debug__:
+                raise e
+
+    @staticmethod
+    def start_QApplication():
+        try:
+            app = QtWidgets.QApplication(sys.argv)
+        except RuntimeError:  # occurs on restart
+            app = QtWidgets.QApplication.instance()
+
+        app.setQuitOnLastWindowClosed(False)
+
+        return app
 
 
 """
@@ -249,41 +320,22 @@ exit_code = 0, quit app
 """
 
 if __name__ in "__main__":
-    try:
-        exit_code = 1
 
-        # logging errors
-        handler = logging.handlers.RotatingFileHandler(
-            "errors.log",
-            maxBytes=500 * 1024,  # 500 kB
-            backupCount=1,
-        )
-        handler.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
-        handler.setLevel(logging.ERROR)
-        app_log = logging.getLogger("root")
-        app_log.setLevel(logging.ERROR)
-        app_log.addHandler(handler)
-    except Exception as e:
-        app_log.exception("Startup error")
-        if __debug__:
-            raise e
+    exit_code = 1
 
     while exit_code == 1:
         exit_code = 0
+        app_log = OnStartup.start_logger()
         try:
-            try:
-                app = QtWidgets.QApplication(sys.argv)
-            except RuntimeError:  # occurs on restart
-                app = QtWidgets.QApplication.instance()
+            app = OnStartup.start_QApplication()
 
-            app.setQuitOnLastWindowClosed(False)
             widget = QtWidgets.QWidget()
-            signal = WorkerSignals()
+            worker_signals = WorkerSignals()
 
             tray_icon = SystemTrayIcon(
                 icon=QtGui.QIcon("assets/enabled.png"),
                 parent=widget,
-                signal=signal,
+                signal=worker_signals,
                 version=VERSION,
             )
 
@@ -300,16 +352,6 @@ if __name__ in "__main__":
             if not os.path.exists("images/default_wallpaper.jpg"):
                 Wallpaper.set_default()
 
-            check_file(
-                "settings.ini",
-                "services.ini",
-                "assets/enabled.png",
-                "assets/disabled.png",
-                "assets/missing_art.jpg",
-                quit_if_missing=True,
-            )
-            check_file("assets/settings_icon.png", quit_if_missing=False)
-
             check_for_updates(tray_icon=tray_icon)
 
             try:
@@ -319,14 +361,20 @@ if __name__ in "__main__":
                 settings_window = SettingsWindow(tray_icon)
                 exit_code = settings_window.exec_()
             else:
-                thread = Worker()
-                signal.pause_state.connect(thread.pause_state)
-                thread.finished.connect(app.exit)
-                thread.start()
+                battery_saver_check_thread = BatterySaverCheckThread(worker_signals)
+                battery_saver_check_thread.start(priority=QtCore.QThread.LowestPriority)
+
+                worker_thread = WorkerThread()
+                worker_signals.pause_state.connect(worker_thread.pause_state)
+                worker_signals.battery_saver_state.connect(
+                    worker_thread.battery_saver_state
+                )
+                worker_thread.finished.connect(app.exit)
+                worker_thread.start(priority=QtCore.QThread.LowPriority)
 
                 exit_code = app.exec_()
 
-                thread.terminate()
+                worker_thread.terminate()
 
         except Exception as e:
             app_log.exception("main error")
