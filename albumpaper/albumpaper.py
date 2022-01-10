@@ -304,6 +304,8 @@ class OnStartup:
 
     @staticmethod
     def start_QApplication():
+        QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
+        QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
         try:
             app = QtWidgets.QApplication(sys.argv)
         except RuntimeError:  # occurs on restart
