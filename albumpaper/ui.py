@@ -15,11 +15,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, icon, parent, signal, version):
         QtWidgets.QSystemTrayIcon.__init__(self, icon, parent)
         self.setToolTip("AlbumPaper")
-
         self.context_menu = QtWidgets.QMenu(parent)
-        self.context_menu.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-
-        self.cursor = QtGui.QCursor()
         self.signal = signal
         self.VERSION = version
 
