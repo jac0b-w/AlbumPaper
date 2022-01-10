@@ -10,32 +10,36 @@ import os, glob, ctypes
 from config import ConfigManager, ConfigValidationError
 from wallpaper import Wallpaper
 
+
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(self, icon, parent, signal, version):
         QtWidgets.QSystemTrayIcon.__init__(self, icon, parent)
         self.setToolTip("AlbumPaper")
-        self.menu = QtWidgets.QMenu(parent)
+
+        self.context_menu = QtWidgets.QMenu(parent)
+        self.context_menu.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+
         self.cursor = QtGui.QCursor()
         self.signal = signal
         self.VERSION = version
 
         try:
-            self.menu.setStyleSheet(ConfigManager.theme()["menu"])
+            self.context_menu.setStyleSheet(ConfigManager.theme()["menu"])
         except KeyError:
             pass
 
-        default_wallpaper_item = self.menu.addAction("Set Default Wallpaper")
+        default_wallpaper_item = self.context_menu.addAction("Set Default Wallpaper")
         default_wallpaper_item.triggered.connect(self.set_default_wallpaper)
 
-        self.menu.addSeparator()
+        self.context_menu.addSeparator()
 
-        settings_item = self.menu.addAction("Settings")
+        settings_item = self.context_menu.addAction("Settings")
         settings_item.triggered.connect(self.settings)
         self.settings_window = SettingsWindow(self)
 
-        self.menu.addSeparator()
+        self.context_menu.addSeparator()
 
-        self.help_menu = self.menu.addMenu("Help")
+        self.help_menu = self.context_menu.addMenu("Help")
         help_latest = self.help_menu.addAction("Lastest Release")
         help_current = self.help_menu.addAction("This Release")
         github_link = "https://github.com/jac0b-w/AlbumPaper/"
@@ -46,57 +50,39 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
             self.open_link(f"{github_link}blob/{self.VERSION}/README.md")
         )
 
-        bug_report_item = self.menu.addAction("Bug Report")
+        bug_report_item = self.context_menu.addAction("Bug Report")
         bug_report_item.triggered.connect(self.open_link(f"{github_link}issues"))
 
-        release_item = self.menu.addAction(f"{self.VERSION}")
+        release_item = self.context_menu.addAction(f"{self.VERSION}")
         release_item.triggered.connect(self.open_link(f"{github_link}releases"))
 
-        self.menu.addSeparator()
+        self.context_menu.addSeparator()
 
-        self.pause_item = self.menu.addAction("Pause")
-        self.pause_item.triggered.connect(self.pause)
+        self.pause_item = self.context_menu.addAction("Pause")
+        self.pause_item.triggered.connect(self.toggle_pause)
         self.is_paused = False
 
-        restart_item = self.menu.addAction("Restart")
+        restart_item = self.context_menu.addAction("Restart")
         restart_item.triggered.connect(self.exit(1))
 
-        exit_item = self.menu.addAction("Quit")
+        exit_item = self.context_menu.addAction("Quit")
         exit_item.triggered.connect(self.exit(0))
 
-        self.setContextMenu(self.menu)
+        self.setContextMenu(self.context_menu)
         self.activated.connect(self.clicked)
 
     def clicked(self, reason):
         if reason == self.Trigger:  # self.Trigger is left click
-            self.contextMenu().setGeometry(*self.context_menu_pos())
-            self.contextMenu().show()
+            pass
+
         if reason == self.DoubleClick:
-            self.pause()
-
-    def context_menu_pos(self):
-        menu_width = 170
-        menu_height = 210
-        screen_width = ctypes.windll.user32.GetSystemMetrics(0)
-        screen_height = ctypes.windll.user32.GetSystemMetrics(1)
-
-        if self.cursor.pos().x() + menu_width > screen_width:
-            x = screen_width - menu_width
-        else:
-            x = self.cursor.pos().x()
-
-        if self.cursor.pos().y() + menu_height > screen_height:
-            y = self.cursor.pos().y() - menu_height
-        else:
-            y = self.cursor.pos().y()
-
-        return x, y, menu_width, menu_height
+            self.toggle_pause()
 
     def settings(self):
         self.settings_window.show()
         self.settings_window.activateWindow()
 
-    def pause(self):
+    def toggle_pause(self):
         self.is_paused = not self.is_paused
         pause_text = {True: "Continue", False: "Pause"}[self.is_paused]
         self.pause_item.setText(pause_text)
@@ -226,7 +212,14 @@ class SettingsWindow(QtWidgets.QDialog):
 
         self.background_combo = QtWidgets.QComboBox()
         self.background_combo.addItems(
-            ["Solid", "Linear Gradient", "Radial Gradient", "Art", "Wallpaper", "Random"]
+            [
+                "Solid",
+                "Linear Gradient",
+                "Radial Gradient",
+                "Art",
+                "Wallpaper",
+                "Random",
+            ]
         )
         self.main_layout.addRow("Background", self.background_combo)
         self.background_combo.setCurrentText(
