@@ -1,5 +1,5 @@
 # external imports
-import os, sys, spotipy, requests, logging, logging.handlers, threading, pkg_resources
+import os, sys, spotipy, requests, logging, logging.handlers, threading, pkg_resources, hashlib
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
 from io import BytesIO
@@ -10,19 +10,24 @@ from config import ConfigManager, ConfigValidationError
 from wallpaper import Wallpaper, GenerateWallpaper
 import winapi
 
-VERSION = "v4.0-beta.1"  # as tagged on github
-
+VERSION = "v4.0-beta.2"  # as tagged on github
 
 def spotify_auth():
     client_id = ConfigManager.services["spotify"]["client_id"]
     client_secret = ConfigManager.services["spotify"]["client_secret"]
+
+    # Easier than deleting the .cache each time keys change and means
+    # no relogin after switching to previous keys
+    hasher = hashlib.shake_128()
+    hasher.update((client_id + client_secret).encode('UTF-8'))
+    hashed_keys = hasher.hexdigest(3)
 
     sp_oauth = spotipy.SpotifyOAuth(
         client_id,
         client_secret,
         redirect_uri="http://localhost:8080/",
         scope="user-read-currently-playing",
-        cache_path=f".cache-{client_id[:4]}{client_secret[:4]}",
+        cache_path=f".cache-{hashed_keys}",
         show_dialog=True,
     )
 
