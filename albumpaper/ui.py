@@ -67,10 +67,10 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.setContextMenu(self.context_menu)
         self.activated.connect(self.clicked)
 
-    def clicked(self, reason):
-        if reason == self.Trigger:  # self.Trigger is left click
-            pass
+        self.messageClicked.connect(self.open_link("https://github.com/jac0b-w/AlbumPaper/releases"))
 
+    def clicked(self, reason):
+        # self.Trigger is left click
         if reason == self.DoubleClick:
             self.toggle_pause()
 
