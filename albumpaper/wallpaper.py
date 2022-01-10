@@ -8,7 +8,7 @@ Classes in this file:
 """
 
 
-import os, ctypes, glob, shutil, collections, time, numpy, scipy.cluster, sklearn.cluster
+import os, ctypes, glob, shutil, collections, time, numpy, scipy.cluster, sklearn.cluster, random
 from PIL import Image, ImageFilter
 from config import ConfigManager
 
@@ -35,12 +35,14 @@ class GenerateWallpaper:
     def __init__(self, app):
         self.foreground_size = ConfigManager.settings["foreground"]["size"]
         background_type = ConfigManager.settings["background"]["type"]
+
         self.gen_background = {
             "Solid": self.color_background,
             "Linear Gradient": self.linear_gradient_background,
             "Radial Gradient": self.radial_gradient_background,
             "Art": self.art_background,
             "Wallpaper": self.wallpaper_background,
+            "Random": self.random_background,
         }[background_type]
 
         self.blur_enabled = ConfigManager.settings["background"]["blur_enabled"]
@@ -211,8 +213,19 @@ class GenerateWallpaper:
         return art_resized
 
     @timer
-    def wallpaper_background(self, *_):
+    def wallpaper_background(self, _album_art: Image.Image) -> Image.Image:
         return Image.open(DEFAULT_WALLPAPER_PATH)
+
+    def random_background(self, album_art: Image) -> Image.Image:
+        backgound = random.choice(
+            [
+                self.color_background,
+                self.linear_gradient_background,
+                self.radial_gradient_background,
+                self.art_background,
+            ]
+        )
+        return backgound(album_art)
 
     def gen_foreground(self, image: Image.Image):
         if self.foreground_enabled:

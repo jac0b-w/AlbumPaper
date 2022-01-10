@@ -226,7 +226,7 @@ class SettingsWindow(QtWidgets.QDialog):
 
         self.background_combo = QtWidgets.QComboBox()
         self.background_combo.addItems(
-            ["Solid", "Linear Gradient", "Radial Gradient", "Art", "Wallpaper"]
+            ["Solid", "Linear Gradient", "Radial Gradient", "Art", "Wallpaper", "Random"]
         )
         self.main_layout.addRow("Background", self.background_combo)
         self.background_combo.setCurrentText(
