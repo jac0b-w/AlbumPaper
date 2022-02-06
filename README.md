@@ -8,6 +8,8 @@ Works with Spotify or Last.fm.
 As the artwork provided is only 640px if you are using a higher resolution than 1080p the artwork will be smaller. However there is an option to resize the image in the settings.
 An internet connection is required.
 
+[<img src = "https://i.giphy.com/media/TDQOtnWgsBx99cNoyH/giphy.webp" height="65px">](https://www.buymeacoffee.com/jac0b)
+
 ## Getting Started
 
 [Download installer for windows](https://github.com/jac0b-w/AlbumPaper/releases/latest)
