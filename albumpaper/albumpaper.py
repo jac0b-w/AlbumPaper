@@ -340,7 +340,7 @@ if __name__ in "__main__":
             worker_signals = WorkerSignals()
 
             tray_icon = SystemTrayIcon(
-                icon=QtGui.QIcon("assets/enabled.png"),
+                icon=QtGui.QIcon("assets/icons/enabled.png"),
                 parent=widget,
                 signal=worker_signals,
                 version=VERSION,

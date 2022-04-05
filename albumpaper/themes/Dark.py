@@ -1,4 +1,5 @@
 {
+"icon_color":"white",
 "settings_window":'''
     QLineEdit  {
         border: 1px solid white;
