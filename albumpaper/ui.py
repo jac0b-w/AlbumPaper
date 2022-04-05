@@ -18,6 +18,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.context_menu = QtWidgets.QMenu(parent)
         self.signal = signal
         self.VERSION = version
+        self.icon_color = ConfigManager.theme()["icon_color"]
 
         try:
             self.context_menu.setStyleSheet(ConfigManager.theme()["menu"])
@@ -25,14 +26,14 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
             pass
 
         default_wallpaper_item = self.context_menu.addAction(
-            QtGui.QIcon("assets/wallpaper.png"), "Set Default Wallpaper"
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/wallpaper.png"), "Set Default Wallpaper"
         )
         default_wallpaper_item.triggered.connect(self.set_default_wallpaper)
 
         self.context_menu.addSeparator()
 
         settings_item = self.context_menu.addAction(
-            QtGui.QIcon("assets/settings_icon.png"), "Settings"
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/settings.png"), "Settings"
         )
         settings_item.triggered.connect(self.settings)
         self.settings_window = SettingsWindow(self)
@@ -40,7 +41,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.context_menu.addSeparator()
 
         self.help_menu = self.context_menu.addMenu(
-            QtGui.QIcon("assets/help.png"), "Help"
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/help.png"), "Help"
         )
         help_latest = self.help_menu.addAction("Lastest Release")
         help_current = self.help_menu.addAction("This Release")
@@ -53,29 +54,29 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         )
 
         bug_report_item = self.context_menu.addAction(
-            QtGui.QIcon("assets/bug_report.png"), "Bug Report"
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/bug_report.png"), "Bug Report"
         )
         bug_report_item.triggered.connect(self.open_link(f"{github_link}issues"))
 
         release_item = self.context_menu.addAction(
-            QtGui.QIcon("assets/update.png"), f"{self.VERSION}"
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/update.png"), f"{self.VERSION}"
         )
         release_item.triggered.connect(self.open_link(f"{github_link}releases"))
 
         self.context_menu.addSeparator()
 
         self.pause_item = self.context_menu.addAction(
-            QtGui.QIcon("assets/pause.png"), "Pause"
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/pause.png"), "Pause"
         )
         self.pause_item.triggered.connect(self.toggle_pause)
         self.is_paused = False
 
         restart_item = self.context_menu.addAction(
-            QtGui.QIcon("assets/restart.png"), "Restart"
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/restart.png"), "Restart"
         )
         restart_item.triggered.connect(self.exit(1))
 
-        exit_item = self.context_menu.addAction(QtGui.QIcon("assets/close.png"), "Quit")
+        exit_item = self.context_menu.addAction(QtGui.QIcon(f"assets/icons/{self.icon_color}/close.png"), "Quit")
         exit_item.triggered.connect(self.exit(0))
 
         self.setContextMenu(self.context_menu)
@@ -98,8 +99,8 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.is_paused = not self.is_paused
         pause_text = {True: "Continue", False: "Pause"}[self.is_paused]
         pause_icon = {
-            False: QtGui.QIcon("assets/pause.png"),
-            True: QtGui.QIcon("assets/play.png"),
+            False: QtGui.QIcon(f"assets/icons/{self.icon_color}/pause.png"),
+            True: QtGui.QIcon(f"assets/icons/{self.icon_color}/play.png"),
         }[self.is_paused]
         self.pause_item.setText(pause_text)
         self.pause_item.setIcon(pause_icon)
@@ -128,8 +129,9 @@ class SettingsWindow(QtWidgets.QDialog):
         self.tray_icon = tray_icon
         self.setWindowTitle("Settings")
         self.setFixedSize(470, 0)
-        if os.path.exists("assets/settings_icon.png"):
-            self.setWindowIcon(QtGui.QIcon("assets/settings_icon.png"))
+        settings_icon_path = f"assets/icons/black/settings.png"
+        if os.path.exists(settings_icon_path):
+            self.setWindowIcon(QtGui.QIcon(settings_icon_path))
 
         self.main_layout = QtWidgets.QFormLayout()
         self.init_service_section()
