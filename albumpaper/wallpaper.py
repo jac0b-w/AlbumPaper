@@ -227,6 +227,10 @@ class GenerateWallpaper:
         )
         return backgound(album_art)
 
+    @timer
+    def add_blur(self, image: Image.Image) -> Image.Image:
+        return image.filter(ImageFilter.GaussianBlur(self.blur_strength))
+
     def gen_foreground(self, image: Image.Image):
         if self.foreground_enabled:
             return image.resize([self.foreground_size] * 2, 3)
@@ -240,6 +244,7 @@ class GenerateWallpaper:
             time.sleep(0.1)
             self.save_image(path, image)
 
+    @timer
     def paste_images(self, background: Image, foreground: Image.Image):
         base = Image.new("RGB", self.display_geometry[:2])
 
@@ -271,11 +276,10 @@ class GenerateWallpaper:
     @timer
     def __call__(self, image: Image.Image):
         if isinstance(image, Image.Image):
+            print("========== Generating new image ==========")
             background = self.gen_background(image)
             if self.blur_enabled:
-                background = background.filter(
-                    ImageFilter.GaussianBlur(self.blur_strength)
-                )
+                background = self.add_blur(background)
 
             self.paste_images(
                 background,
