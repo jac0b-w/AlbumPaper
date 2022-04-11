@@ -12,13 +12,14 @@ from wallpaper import Wallpaper
 
 
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
-    def __init__(self, icon, parent, signal, version):
+    def __init__(self, icon, parent, signal, version, pause_state_manager):
         QtWidgets.QSystemTrayIcon.__init__(self, icon, parent)
         self.setToolTip("AlbumPaper")
         self.context_menu = QtWidgets.QMenu(parent)
         self.signal = signal
         self.VERSION = version
         self.icon_color = ConfigManager.theme()["icon_color"]
+        self.pause_state_manager = pause_state_manager
 
         try:
             self.context_menu.setStyleSheet(ConfigManager.theme()["menu"])
@@ -26,7 +27,8 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
             pass
 
         default_wallpaper_item = self.context_menu.addAction(
-            QtGui.QIcon(f"assets/icons/{self.icon_color}/wallpaper.png"), "Set Default Wallpaper"
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/wallpaper.png"),
+            "Set Default Wallpaper",
         )
         default_wallpaper_item.triggered.connect(self.set_default_wallpaper)
 
@@ -69,14 +71,15 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
             QtGui.QIcon(f"assets/icons/{self.icon_color}/pause.png"), "Pause"
         )
         self.pause_item.triggered.connect(self.toggle_pause)
-        self.is_paused = False
 
         restart_item = self.context_menu.addAction(
             QtGui.QIcon(f"assets/icons/{self.icon_color}/restart.png"), "Restart"
         )
         restart_item.triggered.connect(self.exit(1))
 
-        exit_item = self.context_menu.addAction(QtGui.QIcon(f"assets/icons/{self.icon_color}/close.png"), "Quit")
+        exit_item = self.context_menu.addAction(
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/close.png"), "Quit"
+        )
         exit_item.triggered.connect(self.exit(0))
 
         self.setContextMenu(self.context_menu)
@@ -96,17 +99,27 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.settings_window.activateWindow()
 
     def toggle_pause(self):
-        self.is_paused = not self.is_paused
-        pause_text = {True: "Continue", False: "Pause"}[self.is_paused]
-        pause_icon = {
-            False: QtGui.QIcon(f"assets/icons/{self.icon_color}/pause.png"),
-            True: QtGui.QIcon(f"assets/icons/{self.icon_color}/play.png"),
-        }[self.is_paused]
-        self.pause_item.setText(pause_text)
-        self.pause_item.setIcon(pause_icon)
-        icon = {False: "enabled", True: "disabled"}[self.is_paused]
-        self.setIcon(QtGui.QIcon(f"assets/{icon}.png"))
-        self.signal.pause_state.emit(self.is_paused)
+        self.pause_state_manager.toggle_pause()
+
+    @QtCore.Slot(str)
+    def pause_state(self, state: str):
+        options = {
+            "disabled": {"text": "Continue", "icon": "play", "enabled": True},
+            "enabled": {"text": "Pause", "icon": "pause", "enabled": True},
+            "battery_saver": {
+                "text": "Battery Saving",
+                "icon": "battery_saver",
+                "enabled": False,
+            },
+        }[state]
+
+        self.pause_item.setText(options["text"])
+        self.pause_item.setIcon(
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/{options['icon']}.png")
+        )
+        self.pause_item.setEnabled(options["enabled"])
+
+        self.setIcon(QtGui.QIcon(f"assets/icons/{state}.png"))
 
     def set_default_wallpaper(self):
         Wallpaper.set_default()

@@ -190,9 +190,9 @@ class CurrentArt:
 
 class BatterySaverCheckThread(QtCore.QThread):
     # https://stackoverflow.com/a/33150936
-    def __init__(self, worker_signals, parent=None):
+    def __init__(self, pause_state_manager, parent=None):
         QtCore.QThread.__init__(self, parent)
-        self.worker_signals = worker_signals
+        self.pause_state_manager = pause_state_manager
 
     def run(self):
         try:
@@ -207,7 +207,7 @@ class BatterySaverCheckThread(QtCore.QThread):
                 # To prevent constantly setting desktop to default/generated
                 # TODO implement a more elegant solution
                 if battery_saver_enabled_previous is not battery_saver_enabled:
-                    self.worker_signals.battery_saver_state.emit(battery_saver_enabled)
+                    self.pause_state_manager.set_battery_saver(battery_saver_enabled)
 
                 battery_saver_enabled_previous = battery_saver_enabled
                 self.sleep.wait(1)
@@ -216,10 +216,12 @@ class BatterySaverCheckThread(QtCore.QThread):
             if __debug__:
                 raise e
 
+class PauseStateSignals(QtCore.QObject):
+    pause_state = QtCore.Signal(str)
 
-class WorkerSignals(QtCore.QObject):
-    pause_state = QtCore.Signal(bool)
-    battery_saver_state = QtCore.Signal(bool)
+# class WorkerSignals(QtCore.QObject):
+#     pause_state = QtCore.Signal(bool)
+#     battery_saver_state = QtCore.Signal(bool)
 
 
 class WorkerThread(QtCore.QThread):
@@ -260,7 +262,6 @@ class WorkerThread(QtCore.QThread):
                 raise e
 
     def check_state(self):
-        self.disabled = self._pause_request or self._battery_saver
         if self.disabled:
             self.sleep.clear()
             Wallpaper.set(is_default=True)
@@ -271,21 +272,52 @@ class WorkerThread(QtCore.QThread):
             except AttributeError:
                 pass
 
-    @QtCore.Slot(bool)
-    def pause_state(self, pause_request: bool):
-        self._pause_request = pause_request
+    @QtCore.Slot(str)
+    def pause_state(self, state: str):
+        if state in ("disabled", "battery_saver"):
+            self.disabled = True
+        else:
+            self.disabled = False
         self.check_state()
 
-    @QtCore.Slot(bool)
-    def battery_saver_state(self, enabled: bool):
-        self._battery_saver = enabled
-        self.check_state()
+class PauseStateManager:
+    def __init__(self, signal):
+        self.user_pause = False
+        self.battery_saver = False
 
+        self.mutex = QtCore.QMutex()
+        self.signal = signal
+    
+    def toggle_pause(self):
+        self.mutex.lock()
+        self.user_pause = not self.user_pause
+        self.mutex.unlock()
+        self._send_signal()
+    
+    def set_battery_saver(self, enabled: bool):
+        self.mutex.lock()
+        self.battery_saver = enabled
+        self.mutex.unlock()
+        self._send_signal()
+
+    def _state(self) -> str:
+        self.mutex.lock()
+        if self.battery_saver:
+            self.mutex.unlock()
+            return "battery_saver"
+        elif self.user_pause:
+            self.mutex.unlock()
+            return "disabled"
+        else:
+            self.mutex.unlock()
+            return "enabled"
+
+    def _send_signal(self):
+        self.signal.pause_state.emit(self._state())
 
 """
 Some methods to run when the program starts
 """
-
 
 class OnStartup:
     @staticmethod
@@ -337,13 +369,16 @@ if __name__ in "__main__":
             app = OnStartup.start_QApplication()
 
             widget = QtWidgets.QWidget()
-            worker_signals = WorkerSignals()
+            pause_state_signals = PauseStateSignals()
+
+            pause_state_manager = PauseStateManager(pause_state_signals)
 
             tray_icon = SystemTrayIcon(
                 icon=QtGui.QIcon("assets/icons/enabled.png"),
                 parent=widget,
-                signal=worker_signals,
+                signal=pause_state_signals,
                 version=VERSION,
+                pause_state_manager=pause_state_manager,
             )
 
             try:
@@ -368,14 +403,14 @@ if __name__ in "__main__":
                 settings_window = SettingsWindow(tray_icon)
                 exit_code = settings_window.exec_()
             else:
-                battery_saver_check_thread = BatterySaverCheckThread(worker_signals)
+                battery_saver_check_thread = BatterySaverCheckThread(pause_state_manager)
                 battery_saver_check_thread.start(priority=QtCore.QThread.LowestPriority)
 
                 worker_thread = WorkerThread()
-                worker_signals.pause_state.connect(worker_thread.pause_state)
-                worker_signals.battery_saver_state.connect(
-                    worker_thread.battery_saver_state
-                )
+                pause_state_signals.pause_state.connect(worker_thread.pause_state)
+
+                pause_state_signals.pause_state.connect(tray_icon.pause_state)
+
                 worker_thread.finished.connect(app.exit)
                 worker_thread.start(priority=QtCore.QThread.LowPriority)
 
