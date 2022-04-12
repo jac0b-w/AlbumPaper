@@ -20,20 +20,20 @@ class ConfigManager:
             for key in ["client_id", "client_secret"]:
                 try:
                     cls._validator.check(
-                        "string(max=32, min=32)",
+                        "string(min=32, max=32)",
                         cls.services["spotify"][key],
                     )
                 except validate.ValidateError:
                     raise ConfigValidationError("Set valid Spotify API keys")
 
-        elif cls.settings["service"] == "last.fm":
+        elif cls.settings["service"]["name"] == "last.fm":
             try:
                 cls._validator.check(
-                    "string(max=32, min=32)",
+                    "string(min=32, max=32)",
                     cls.services["last.fm"]["api_key"],
                 )
                 cls._validator.check(
-                    "string(max=2, min=15)",
+                    "string(min=2, max=15)",
                     cls.services["last.fm"]["username"],
                 )
             except validate.ValidateError:

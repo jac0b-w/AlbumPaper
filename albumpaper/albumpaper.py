@@ -78,14 +78,14 @@ class CurrentArt:
             }
 
             response = requests.get(url, headers=headers, params=payload)
-            return response
+            return response.json()
         except:
             print("[ERROR] Last.fm request error")
             return None
 
     def lastfm_art_url(self):
         try:
-            current = self.lastfm_request().json()["recenttracks"]["track"][0]
+            current = self.lastfm_request()["recenttracks"]["track"][0]
         except KeyError:  # Occurs when last.fm api fails (breifly) or API keys are invalid
             return None
         except:
@@ -93,7 +93,9 @@ class CurrentArt:
             return "default"
         try:
             if current["@attr"]["nowplaying"].lower() == "true":
-                return current["image"][0]["#text"].replace("34s", "600x600")
+                return current["image"][0]["#text"].replace(
+                    "/i/u/34s/", "/i/u/600x600/"
+                )  # find 600px version
             else:  # when track is not playing
                 return "default"
         except:  # occurs when the user isn't playing a track
