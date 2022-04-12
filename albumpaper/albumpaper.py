@@ -277,7 +277,7 @@ class PauseStateSignals(QtCore.QObject):
 
 class PauseStateManager:
     def __init__(self, signal):
-        self.user_pause = False
+        self.user_pause = ConfigManager.settings["miscellaneous"]["paused"]
         self.battery_saver = False
 
         mutex = QtCore.QMutex()
@@ -287,6 +287,8 @@ class PauseStateManager:
     def toggle_pause(self):
         with self.locker:
             self.user_pause = not self.user_pause
+            ConfigManager.settings["miscellaneous"]["paused"] = self.user_pause
+            ConfigManager.save()
         self._send_signal()
     
     def set_battery_saver(self, enabled: bool):
@@ -404,6 +406,8 @@ if __name__ in "__main__":
 
                 worker_thread.finished.connect(app.exit)
                 worker_thread.start(priority=QtCore.QThread.LowPriority)
+
+                pause_state_manager._send_signal()
 
                 exit_code = app.exec_()
 
