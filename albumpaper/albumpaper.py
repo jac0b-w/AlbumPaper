@@ -216,21 +216,12 @@ class BatterySaverCheckThread(QtCore.QThread):
             if __debug__:
                 raise e
 
-class PauseStateSignals(QtCore.QObject):
-    pause_state = QtCore.Signal(str)
-
-# class WorkerSignals(QtCore.QObject):
-#     pause_state = QtCore.Signal(bool)
-#     battery_saver_state = QtCore.Signal(bool)
-
-
 class WorkerThread(QtCore.QThread):
     def run(self):
         try:
             self.sleep = threading.Event()  # improves pause responsiveness
-            # self.pause_state(False)  # makes continue button work first time
 
-            self._pause_request = False
+            self._pause_request = ConfigManager.settings["miscellaneous"]["paused"]
             self._battery_saver = (
                 winapi.battery_saver_enabled()
                 and not ConfigManager.settings["power"]["disable_on_battery_saver"]
@@ -280,37 +271,37 @@ class WorkerThread(QtCore.QThread):
             self.disabled = False
         self.check_state()
 
+
+class PauseStateSignals(QtCore.QObject):
+    pause_state = QtCore.Signal(str)
+
 class PauseStateManager:
     def __init__(self, signal):
         self.user_pause = False
         self.battery_saver = False
 
-        self.mutex = QtCore.QMutex()
+        mutex = QtCore.QMutex()
+        self.locker = QtCore.QMutexLocker(mutex)
         self.signal = signal
     
     def toggle_pause(self):
-        self.mutex.lock()
-        self.user_pause = not self.user_pause
-        self.mutex.unlock()
+        with self.locker:
+            self.user_pause = not self.user_pause
         self._send_signal()
     
     def set_battery_saver(self, enabled: bool):
-        self.mutex.lock()
-        self.battery_saver = enabled
-        self.mutex.unlock()
+        with self.locker:
+            self.battery_saver = enabled
         self._send_signal()
 
     def _state(self) -> str:
-        self.mutex.lock()
-        if self.battery_saver:
-            self.mutex.unlock()
-            return "battery_saver"
-        elif self.user_pause:
-            self.mutex.unlock()
-            return "disabled"
-        else:
-            self.mutex.unlock()
-            return "enabled"
+        with self.locker:
+            if self.battery_saver:
+                return "battery_saver"
+            elif self.user_pause:
+                return "disabled"
+            else:
+                return "enabled"
 
     def _send_signal(self):
         self.signal.pause_state.emit(self._state())
