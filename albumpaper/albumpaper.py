@@ -1,5 +1,6 @@
 # external imports
 import os, sys, spotipy, requests, logging, logging.handlers, threading, pkg_resources, hashlib
+from typing import Callable
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
 from io import BytesIO
@@ -12,42 +13,60 @@ import winapi
 
 VERSION = "v4.0-beta.2"  # as tagged on github
 
-def spotify_auth():
-    client_id = ConfigManager.services["spotify"]["client_id"]
-    client_secret = ConfigManager.services["spotify"]["client_secret"]
 
-    # Easier than deleting the .cache each time keys change and means
-    # no relogin after switching to previous keys
-    hasher = hashlib.shake_128()
-    hasher.update((client_id + client_secret).encode('UTF-8'))
-    hashed_keys = hasher.hexdigest(3)
+class SpotifyAuth:
+    def __init__(self, toast: Callable):
+        self.toast = toast
+        self.authorize()
 
-    sp_oauth = spotipy.SpotifyOAuth(
-        client_id,
-        client_secret,
-        redirect_uri="http://localhost:8080/",
-        scope="user-read-currently-playing",
-        cache_path=f".cache-{hashed_keys}",
-        show_dialog=True,
-    )
+    def authorize(self):
+        client_id = ConfigManager.services["spotify"]["client_id"]
+        client_secret = ConfigManager.services["spotify"]["client_secret"]
 
-    try:
-        token_info = sp_oauth.get_access_token(as_dict=True)
-        token = token_info["access_token"]
-    except spotipy.oauth2.SpotifyOauthError as e:
-        tray_icon.showMessage("Authentication Error", e.error_description)
-        ConfigManager.services["spotify"]["client_secret"] = ""
+        # Easier than deleting the .cache each time keys change and means
+        # no relogin after switching to previous keys
+        hasher = hashlib.shake_128()
+        hasher.update((client_id + client_secret).encode("UTF-8"))
+        hashed_keys = hasher.hexdigest(3)
+
+        self.sp_oauth = spotipy.SpotifyOAuth(
+            client_id,
+            client_secret,
+            redirect_uri="http://localhost:8080/",
+            scope="user-read-currently-playing",
+            cache_path=f".cache-{hashed_keys}",
+            show_dialog=True,
+        )
+
         try:
-            ConfigManager.save()
-        except ConfigValidationError as e:
-            tray_icon.showMessage("Set valid Spotify client secret", "")
-        threading.Event().wait(3)
-        QtWidgets.QApplication.exit(0)
+            self.token_info = self.sp_oauth.get_access_token(as_dict=True)
+            token = self.token_info["access_token"]
+        except spotipy.oauth2.SpotifyOauthError as e:
+            self.toast("Authentication Error", e.error_description)
+            ConfigManager.services["spotify"]["client_secret"] = ""
+            try:
+                ConfigManager.save()
+            except ConfigValidationError as e:
+                self.toast("Set valid Spotify client secret", "")
+            threading.Event().wait(3)
+            QtWidgets.QApplication.exit(0)
 
-    try:
-        return spotipy.Spotify(auth=token), sp_oauth, token_info
-    except Exception as e:
-        raise e
+        try:
+            self.api = spotipy.Spotify(auth=token)
+        except Exception as e:
+            raise e
+
+    def refresh_token(self):
+        try:
+            if self.sp_oauth.is_token_expired(token_info=self.token_info):
+                self.token_info = self.sp_oauth.refresh_access_token(
+                    self.token_info["refresh_token"]
+                )
+                token = self.token_info["access_token"]
+                self.api = spotipy.Spotify(auth=token)
+                print("TOKEN REFRESHED")
+        except:
+            print("FAILED TO REFRESH TOKEN")
 
 
 """
@@ -76,12 +95,12 @@ def check_for_updates(tray_icon):
 
 
 class CurrentArt:
-    def __init__(self, sp=None):
-        if sp is None:  # using lastfm
+    def __init__(self, service: str):
+        if service == "last.fm":  # using lastfm
             self.art_url = self.lastfm_art_url
         else:
             self.art_url = self.spotify_art_url
-            self.sp, self.sp_oauth, self.token_info = spotify_auth()
+            self.spotify = SpotifyAuth(tray_icon.showMessage)
 
         self.missing_art = Image.open("assets/missing_art.jpg").convert("RGB")
         self.previous_image_url = None
@@ -89,28 +108,16 @@ class CurrentArt:
 
     def spotify_art_url(self) -> str:
         try:
-            self.refresh_token()
-            current = self.sp.currently_playing()
+            self.spotify.refresh_token()
+            current = self.spotify.api.currently_playing()
             if current["is_playing"]:
                 return current["item"]["album"]["images"][0]["url"]
             else:
                 return "default"
         except spotipy.client.SpotifyException:  # Token expired
-            self.refresh_token()
+            self.spotify.refresh_token()
         except:  # local tracks, no devices playing
             return "default"
-
-    def refresh_token(self):
-        try:
-            if self.sp_oauth.is_token_expired(token_info=self.token_info):
-                self.token_info = self.sp_oauth.refresh_access_token(
-                    self.token_info["refresh_token"]
-                )
-                token = self.token_info["access_token"]
-                self.sp = spotipy.Spotify(auth=token)
-                print("TOKEN REFRESHED")
-        except:
-            print("FAILED TO REFRESH TOKEN")
 
     def lastfm_request(self):
         try:
@@ -216,6 +223,7 @@ class BatterySaverCheckThread(QtCore.QThread):
             if __debug__:
                 raise e
 
+
 class WorkerThread(QtCore.QThread):
     def run(self):
         try:
@@ -229,11 +237,7 @@ class WorkerThread(QtCore.QThread):
 
             self.disabled = False
 
-            if ConfigManager.settings["service"]["name"] == "spotify":
-                sp, *__ = spotify_auth()
-                self.get_art = CurrentArt(sp)
-            else:
-                self.get_art = CurrentArt()
+            self.get_art = CurrentArt(service=ConfigManager.settings["service"]["name"])
 
             request_interval = ConfigManager.settings["service"]["request_interval"]
 
@@ -275,6 +279,7 @@ class WorkerThread(QtCore.QThread):
 class PauseStateSignals(QtCore.QObject):
     pause_state = QtCore.Signal(str)
 
+
 class PauseStateManager:
     def __init__(self, signal):
         self.user_pause = ConfigManager.settings["miscellaneous"]["paused"]
@@ -283,14 +288,14 @@ class PauseStateManager:
         mutex = QtCore.QMutex()
         self.locker = QtCore.QMutexLocker(mutex)
         self.signal = signal
-    
+
     def toggle_pause(self):
         with self.locker:
             self.user_pause = not self.user_pause
             ConfigManager.settings["miscellaneous"]["paused"] = self.user_pause
             ConfigManager.save()
         self._send_signal()
-    
+
     def set_battery_saver(self, enabled: bool):
         with self.locker:
             self.battery_saver = enabled
@@ -308,9 +313,11 @@ class PauseStateManager:
     def _send_signal(self):
         self.signal.pause_state.emit(self._state())
 
+
 """
 Some methods to run when the program starts
 """
+
 
 class OnStartup:
     @staticmethod
@@ -396,7 +403,9 @@ if __name__ in "__main__":
                 settings_window = SettingsWindow(tray_icon)
                 exit_code = settings_window.exec_()
             else:
-                battery_saver_check_thread = BatterySaverCheckThread(pause_state_manager)
+                battery_saver_check_thread = BatterySaverCheckThread(
+                    pause_state_manager
+                )
                 battery_saver_check_thread.start(priority=QtCore.QThread.LowestPriority)
 
                 worker_thread = WorkerThread()
