@@ -17,7 +17,7 @@ from albumpaper_imagegen import linear_gradient, radial_gradient
 
 
 DEFAULT_WALLPAPER_PATH = "images/default_wallpaper.jpg"
-GENERATED_WALLPAPER_PATH = "images/generated_wallpaper.jpg"
+GENERATED_WALLPAPER_PATH = "images/generated_wallpaper.png"
 
 
 def timer(func):
@@ -239,7 +239,7 @@ class GenerateWallpaper:
 
     def save_image(self, path, image: Image.Image):
         try:
-            image.save(path, "JPEG", quality=100)
+            image.save(path, "PNG", quality=100)
         except OSError:
             time.sleep(0.1)
             self.save_image(path, image)
