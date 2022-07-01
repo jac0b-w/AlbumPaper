@@ -47,6 +47,15 @@ Network Usage spikes: <1mbps
 
 ## Examples
 
-<img src = readme_images/example2.jpg>
+### Album Artwork Background
 
-<img src = readme_images/example.jpg>
+<img src = readme_images/eg_art1.jpg>
+
+<img src = readme_images/eg_art2.jpg>
+
+### Gradient Backgrounds
+
+<img src = readme_images/eg_radial.jpg>
+
+<img src = readme_images/eg_linear.jpg>
+
