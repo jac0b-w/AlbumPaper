@@ -8,6 +8,12 @@ edition = "2021"
 [dependencies]
 image = "0.23.14"
 rayon = "1.5.1"
+fastblur = { git = "https://github.com/fschutt/fastblur" }
+kmeans_colors = {version = "0.5", features = ["palette_color"]}
+palette = "0.6.1"
+ordered-float = { version = "3.0", default-features = false }
+fast_image_resize = "1.0.0"
+itertools = "0.10.5"
 
 [lib]
 name = "albumpaper_imagegen"
