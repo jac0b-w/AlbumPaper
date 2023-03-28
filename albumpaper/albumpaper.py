@@ -1,5 +1,5 @@
 # external imports
-import os, sys, spotipy, requests, logging, logging.handlers, threading, pkg_resources
+import os, sys, spotipy, requests, logging, logging.handlers, threading, pkg_resources, time
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
 from io import BytesIO
@@ -9,7 +9,7 @@ from ui import SystemTrayIcon, SettingsWindow
 from config import ConfigManager, ConfigValidationError
 from wallpaper import Wallpaper, GenerateWallpaper
 from spotifyauth import SpotifyAuth
-import winapi
+import winapi, misc
 
 VERSION = "v4.0-beta.2"  # as tagged on github
 
@@ -24,7 +24,7 @@ def check_for_updates(tray_icon):
 
     try:
         response = requests.get(
-            "https://api.github.com/repos/jac0b-w/AlbumPaper/releases/latest"
+            "https://api.github.com/repos/jac0b-w/AlbumPaper/releases/latest",
         )
         latest_version: str = response.json()["tag_name"]
     except Exception:
@@ -35,7 +35,7 @@ def check_for_updates(tray_icon):
     if pkg_resources.parse_version(VERSION) < pkg_resources.parse_version(
         latest_version
     ):
-        tray_icon.showMessage("New update", f"Update {latest_version} avaliable")
+        tray_icon.showMessage("New update", f"Update {latest_version} available")
 
 
 class CurrentArt:
@@ -102,9 +102,13 @@ class CurrentArt:
             return "default"
 
     @staticmethod
-    def download_image(url: str) -> Image.Image:
-        response = requests.get(url)
-        return Image.open(BytesIO(response.content)).convert("RGB")
+    @misc.timer
+    def get_image(url: str) -> Image.Image:
+        try:
+            response_content = misc.download_image(url)
+            return Image.open(BytesIO(response_content)).convert("RGB")
+        except requests.exceptions.MissingSchema:
+            return None
 
     def get_current_art(self):
         """
@@ -133,8 +137,11 @@ class CurrentArt:
             ):  # wallpaper has already been generated
                 return "generated"
 
-            art = self.download_image(image_url)
-            if ImageChops.difference(art, self.missing_art).getbbox() is None:
+            art = self.get_image(image_url)
+            if art is None:  # If image couldn't be downloaded
+                return "default"
+            # if downloaded image is last.fm missing_art image
+            elif ImageChops.difference(art, self.missing_art).getbbox() is None:
                 return "default"
             else:
                 self.previously_generated_url = image_url
@@ -193,8 +200,13 @@ class WorkerThread(QtCore.QThread):
                 if self.disabled:
                     self.sleep.wait()
 
+                start = time.time()
                 image = self.get_art.get_current_art()
-                wallaper_generator(image)
+                wallaper_generator.generate(image)
+
+                if type(image) == Image.Image:
+                    print(f"TOTAL TIME = {time.time() - start}")
+
                 self.sleep.wait(request_interval)
 
         except Exception as e:

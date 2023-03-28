@@ -8,27 +8,46 @@ Classes in this file:
 """
 
 
-import os, ctypes, glob, shutil, collections, time, numpy, scipy.cluster, sklearn.cluster, random
-from PIL import Image, ImageFilter
+import os, ctypes, glob, shutil, collections, numpy, scipy.cluster, sklearn.cluster, random, functools
+from typing import Optional
+from PIL import Image
 from config import ConfigManager
+from misc import timer, HashableImage
+import structs
 
 # rust functions
-from albumpaper_imagegen import linear_gradient, radial_gradient
-
+import albumpaper_rs
 
 DEFAULT_WALLPAPER_PATH = "images/default_wallpaper.jpg"
 GENERATED_WALLPAPER_PATH = "images/generated_wallpaper.png"
 
 
-def timer(func):
-    def wrapper(*args, **kwargs):
-        start = time.time()
-        return_values = func(*args, **kwargs)
-        if time.time() - start > 0.005:
-            print(f"function {func.__name__} took {time.time() - start} seconds")
-        return return_values
+def rust_image(method):
+    @functools.wraps(method) # keeps method name, docstring etc
+    def _wrapper(
+        self,
+        artwork: Optional[Image.Image],
+        *args,
+        **kwargs,
+    ):
+        if artwork is not None:
+            artwork_buf = artwork.tobytes("raw")
+            buf_size: tuple = artwork.size
+        else:
+            artwork_buf = None
+            buf_size = None
 
-    return wrapper
+        method(
+            artwork_buf,
+            buf_size,
+            self.foreground_size if self.foreground_enabled else None,
+            self.display_geometry[:2],
+            self.available_geometry,
+            *args,
+            **kwargs,
+        )
+
+    return _wrapper
 
 
 class GenerateWallpaper:
@@ -53,25 +72,25 @@ class GenerateWallpaper:
         Geometry = collections.namedtuple("Geometry", ["w", "h", "left", "top"])
         dw = app.primaryScreen()
         self.display_geometry = Geometry(dw.size().width(), dw.size().height(), 0, 0)
-        self.avaliable_geometry = Geometry(
+        self.available_geometry = Geometry(
             dw.availableGeometry().width(),
             dw.availableGeometry().height(),
             dw.availableGeometry().left(),
             dw.availableGeometry().top(),
         )
 
+        self.dominant_colors = functools.lru_cache(10)(self.dominant_colors)
+
     @timer
-    def dominant_colors(self, image: Image.Image):
+    def dominant_colors(self, hashable_image: HashableImage):
         """
         Input: PIL image
         Output: A list of 10 colors in the image from most dominant to least dominant
         Adaptation of https://stackoverflow.com/a/3244061/7274182
         """
-
-        image = image.resize((150, 150))  # optional, to reduce time
-        ar = numpy.asarray(image)
+        ar = numpy.asarray(hashable_image.image.resize((150, 150), 0))
         shape = ar.shape
-        ar = ar.reshape(numpy.product(shape[:2]), shape[2]).astype(float)
+        ar = ar.reshape(numpy.product(shape[:2]), shape[2]).astype(float) # flatten to shape (width*height, 3)
 
         kmeans = sklearn.cluster.MiniBatchKMeans(
             n_clusters=10, init="k-means++", max_iter=20, random_state=1000
@@ -121,7 +140,7 @@ class GenerateWallpaper:
         min_rgb = min(color) / 255
         max_rgb = max(color) / 255
         luminosity = self.color_luminosity(color)
-        if luminosity == 0:
+        if luminosity == 1:
             return 0
         else:
             try:
@@ -137,7 +156,7 @@ class GenerateWallpaper:
         Firstly get the 7 most dominant colours and pick the most saturated
         Pair the most saturated colour with the colour that has the largest percieved difference
         """
-        dominant_colors = self.dominant_colors(image)
+        dominant_colors = self.dominant_colors(HashableImage(image))
 
         saturations = [
             {"color": color, "saturation": self.color_saturation(color)}
@@ -168,53 +187,68 @@ class GenerateWallpaper:
         # (Color(r=120, g=50, b=12), Color(r=190, g=200, b=203))
 
     @timer
-    def linear_gradient_background(
-        self, image: Image.Image
-    ) -> Image.Image:  # https://gist.github.com/weihanglo/1e754ec47fdd683a42fdf6a272904535
-        gradient_pair = self.gradient_colors(image)
-        geometry: tuple = self.display_geometry[:2]
-
-        raw = linear_gradient(
-            geometry=geometry,
-            from_color=list(gradient_pair[0]),
-            to_color=list(gradient_pair[1]),
+    def linear_gradient_background(self, image: Image.Image):
+        albumpaper_rs.generate_save_wallpaper(
+            structs.RequiredArguments(
+                "LinearGradient",
+                structs.Foreground(image, self.foreground_size),
+                self.display_geometry[:2],
+                self.available_geometry,
+            ),
+            structs.OptionalArguments(None, None, None),
         )
-        background = Image.frombuffer("RGB", geometry, raw)
-
-        return background
 
     @timer
-    def radial_gradient_background(self, image: Image.Image) -> Image.Image:
-        gradient_pair = self.gradient_colors(image)
-        geometry: tuple = self.display_geometry[:2]
-
-        if not self.foreground_enabled:
-            self.foreground_size = 0
-
-        raw = radial_gradient(
-            geometry=geometry,
-            inner_color=list(gradient_pair[0]),
-            outer_color=list(gradient_pair[1]),
-            foreground_size=self.foreground_size,
+    def radial_gradient_background(self, image: Image.Image):
+        from_color, to_color = self.gradient_colors(image)
+        albumpaper_rs.generate_save_wallpaper(
+            structs.RequiredArguments(
+                "RadialGradient",
+                structs.Foreground(image, self.foreground_size),
+                self.display_geometry[:2],
+                self.available_geometry,
+            ),
+            structs.OptionalArguments(None, from_color, to_color),
         )
-        background = Image.frombuffer("RGB", geometry, raw)
-
-        return background
 
     @timer
     def color_background(self, image: Image.Image) -> Image.Image:
-        color = self.dominant_colors(image)[0]
-        return Image.new("RGB", self.display_geometry[:2], color)
+        # color = self.dominant_colors(HashableImage(image))[0]
+        albumpaper_rs.generate_save_wallpaper(
+            structs.RequiredArguments(
+                "SolidColor",
+                structs.Foreground(image, self.foreground_size),
+                self.display_geometry[:2],
+                self.available_geometry,
+            ),
+            structs.OptionalArguments(None, None, None),
+        )
 
     @timer
-    def art_background(self, image: Image.Image) -> Image.Image:
-        max_dim = max(self.display_geometry[:2])
-        art_resized = image.resize([max_dim] * 2, 3)
-        return art_resized
+    def art_background(self, image: Image.Image):
+        blur: Optional[int] = int(self.blur_strength) if self.blur_enabled else None
+        albumpaper_rs.generate_save_wallpaper(
+            structs.RequiredArguments(
+                "Artwork",
+                structs.Foreground(image, self.foreground_size),
+                self.display_geometry[:2],
+                self.available_geometry,
+            ),
+            structs.OptionalArguments(blur, None, None),
+        )
 
     @timer
-    def wallpaper_background(self, _album_art: Image.Image) -> Image.Image:
-        return Image.open(DEFAULT_WALLPAPER_PATH)
+    def wallpaper_background(self, image: Image.Image):
+        blur: Optional[int] = int(self.blur_strength) if self.blur_enabled else None
+        albumpaper_rs.generate_save_wallpaper(
+            structs.RequiredArguments(
+                "DefaultWallpaper",
+                structs.Foreground(image, self.foreground_size),
+                self.display_geometry[:2],
+                self.available_geometry,
+            ),
+            structs.OptionalArguments(blur, None, None),
+        )
 
     def random_background(self, album_art: Image) -> Image.Image:
         backgound = random.choice(
@@ -227,64 +261,11 @@ class GenerateWallpaper:
         )
         return backgound(album_art)
 
-    @timer
-    def add_blur(self, image: Image.Image) -> Image.Image:
-        return image.filter(ImageFilter.GaussianBlur(self.blur_strength))
 
-    def gen_foreground(self, image: Image.Image):
-        if self.foreground_enabled:
-            return image.resize([self.foreground_size] * 2, 3)
-        else:
-            return None
-
-    def save_image(self, path, image: Image.Image):
-        try:
-            image.save(path, "PNG", quality=100)
-        except OSError:
-            time.sleep(0.1)
-            self.save_image(path, image)
-
-    @timer
-    def paste_images(self, background: Image, foreground: Image.Image):
-        base = Image.new("RGB", self.display_geometry[:2])
-
-        # background paste
-        x = (
-            int((self.display_geometry.w - background.size[0]) / 2)
-            + self.display_geometry.left
-        )
-        y = (
-            int((self.display_geometry.h - background.size[1]) / 2)
-            + self.display_geometry.top
-        )
-        base.paste(background, (x, y))
-
-        # foreground paste
-        if foreground is not None:
-            x = (
-                int((self.avaliable_geometry.w - foreground.size[0]) / 2)
-                + self.avaliable_geometry.left
-            )
-            y = (
-                int((self.avaliable_geometry.h - foreground.size[1]) / 2)
-                + self.avaliable_geometry.top
-            )
-            base.paste(foreground, (x, y))
-
-        self.save_image(GENERATED_WALLPAPER_PATH, base)
-
-    @timer
-    def __call__(self, image: Image.Image):
+    def generate(self, image: Image.Image):
         if isinstance(image, Image.Image):
             print("========== Generating new image ==========")
-            background = self.gen_background(image)
-            if self.blur_enabled:
-                background = self.add_blur(background)
-
-            self.paste_images(
-                background,
-                self.gen_foreground(image),
-            )
+            self.gen_background(image)
 
             Wallpaper.set(is_default=False)
         elif image == "default":
@@ -305,8 +286,9 @@ class Wallpaper:
     def set_default():
         """
         1. First look in %APPDATA%\Microsoft\Windows\Themes\CachedFiles
-        and use most recent image
+        and use most recent image (this will have the resolution of the desktop)
         2. If that fails look for %APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper
+        (this will have the resolution of the original image)
         3. If that fails find the original path of the wallpaper and save that image instead
         # https://stackoverflow.com/questions/44867820/
         4. Finally if all fail just save use a blank image as the dafault wallpaper
