@@ -1,14 +1,11 @@
 #![allow(clippy::manual_map)]
-#![allow(clippy::too_many_arguments)]
 
 use fastblur::gaussian_blur;
 use image::{imageops, io::Reader as ImageReader, RgbImage};
 use rayon::prelude::*;
-
-mod colors;
-mod resize;
-
 use pyo3::prelude::*;
+
+mod resize;
 
 const DEFAULT_WALLPAPER_PATH: &str = "images/default_wallpaper.jpg";
 const GENERATED_WALLPAPER_PATH: &str = "images/generated_wallpaper.png";
@@ -83,20 +80,17 @@ fn generate_wallpaper(required_args: RequiredArgs, optional_args: OptionalArgs) 
             optional_args.blur_radius,
         ),
         "SolidColor" => {
-            // let downscaled = resize::fast_resize(&artwork, 150, 150);
-            let color = colors::dominant_colors(artwork.as_raw().clone())[0];
             RgbImage::from_pixel(
                 required_args.display_geometry[0],
                 required_args.display_geometry[1],
-                image::Rgb(color),
+                image::Rgb(optional_args.color1.unwrap()),
             )
         }
         "LinearGradient" => {
-            let [color1, color2] = colors::gradient_colors(artwork.as_raw().clone());
             linear_gradient(
                 required_args.display_geometry,
-                color1,
-                color2,
+                optional_args.color1.unwrap(),
+                optional_args.color2.unwrap(),
             )
         },
         "RadialGradient" => gen_radial_gradient(
