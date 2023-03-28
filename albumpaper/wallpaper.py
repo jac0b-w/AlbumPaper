@@ -111,7 +111,7 @@ class GenerateWallpaper:
     def color_difference(c1, c2):
         """
         Input: RGB named tuples
-        Output: An aproximation of percieved color difference of two colors
+        Output: An aproximation of perceived color difference of two colors
         https://www.compuphase.com/cmetric.htm
         """
         r = (c1.r + c2.r) / 2
@@ -154,7 +154,7 @@ class GenerateWallpaper:
         """
         Determine best colours for the gradient
         Firstly get the 7 most dominant colours and pick the most saturated
-        Pair the most saturated colour with the colour that has the largest percieved difference
+        Pair the most saturated colour with the colour that has the largest perceived difference
         """
         dominant_colors = self.dominant_colors(HashableImage(image))
 

@@ -45,7 +45,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.help_menu = self.context_menu.addMenu(
             QtGui.QIcon(f"assets/icons/{self.icon_color}/help.png"), "Help"
         )
-        help_latest = self.help_menu.addAction("Lastest Release")
+        help_latest = self.help_menu.addAction("Latest Release")
         help_current = self.help_menu.addAction("This Release")
         github_link = "https://github.com/jac0b-w/AlbumPaper/"
         help_latest.triggered.connect(
