@@ -260,13 +260,13 @@ fn gen_radial_gradient(
     outer_color: [u8; 3],
     foreground_size: u32,
 ) -> RgbImage {
-    let mut background: RgbImage = RgbImage::new(geometry[0] as u32, geometry[1] as u32);
+    let mut background: RgbImage = RgbImage::new(geometry[0], geometry[1]);
 
     // The background will adapt to the foreground size so that the inner_color will be at the edges of the art
     // and not just at the centre of the image
     let center = ((geometry[0] / 2) as i32, (geometry[1] / 2) as i32);
     let foreground_half = (foreground_size / 2) as f32;
-    let max_dist = distance(center.0 as i32, center.1 as i32) - foreground_half;
+    let max_dist = distance(center.0, center.1) - foreground_half;
     let one_over_max_dist = 1.0 / max_dist;
 
     let inner_color = inner_color.map(|el| el as f32);
@@ -291,47 +291,6 @@ fn gen_radial_gradient(
         });
     background
 }
-
-// pub fn artwork(_py: Python, args: RequiredArgs, blur_radius: Option<f32>) {
-//     let [width, height] = args.display_geometry;
-//     let max_dim = std::cmp::max(width, height);
-
-//     let artwork: RgbImage = RgbImage::from_raw(
-//         args.foreground.artwork_size[0],
-//         args.foreground.artwork_size[0],
-//         args.foreground.artwork_buffer,
-//     )
-//     .unwrap();
-
-//     let background = if let Some(blur_radius) = blur_radius {
-//         let half_size: RgbImage = resize::fast_resize(&artwork, max_dim / 4, max_dim / 4);
-//         let half_size = add_blur(&half_size, blur_radius / 4.0);
-//         resize::fast_resize(&half_size, max_dim, max_dim)
-//     } else {
-//         resize::fast_resize(&artwork, max_dim, max_dim)
-//     };
-
-//     let foreground = Some(resize::fast_resize(
-//         &artwork,
-//         args.foreground.unwrap().artwork_resize,
-//         args.foreground.unwrap().artwork_resize,
-//     ));
-
-//     let final_image = paste_images(
-//         background,
-//         foreground,
-//         (args.display_geometry[0], args.display_geometry[1]),
-//         (
-//             args.available_geometry[0],
-//             args.available_geometry[1],
-//             args.available_geometry[2],
-//             args.available_geometry[3],
-//         ),
-//     );
-
-//     // PyBytes::new(py, final_image.as_raw()).into()
-//     final_image.save(GENERATED_WALLPAPER_PATH).unwrap();
-// }
 
 fn paste_images(
     background: &RgbImage,
@@ -358,48 +317,3 @@ fn paste_images(
     }
     base
 }
-
-// #[pyfunction]
-// pub fn solid_color(
-//     _py: Python,
-//     artwork_buf: Vec<u8>,
-//     buf_size: (u32, u32),
-//     foreground_size: Option<u32>,
-//     display_geometry: (u32, u32),
-//     available_geometry: (u32, u32, u32, u32),
-//     color: [u8; 3],
-// ) {
-//     let (width, height) = display_geometry;
-//     let background = RgbImage::from_pixel(width, height, image::Rgb(color));
-
-//     let foreground = if let Some(size) = foreground_size {
-//         let artwork: RgbImage = RgbImage::from_raw(buf_size.0, buf_size.1, artwork_buf).unwrap();
-//         Some(resize::fast_resize(&artwork, size, size))
-//     } else {
-//         None
-//     };
-
-//     let final_image = paste_images(background, foreground, display_geometry, available_geometry);
-
-//     final_image.save(GENERATED_WALLPAPER_PATH).unwrap();
-// }
-
-// #[pyfunction]
-// pub fn wallpaper(
-//     _py: Python,
-//     artwork_buf: Vec<u8>,
-//     buf_size: (u32, u32),
-//     foreground_size: Option<u32>,
-//     display_geometry: (u32, u32),
-//     available_geometry: (u32, u32, u32, u32),
-// ) {
-
-//     let background = ImageReader::open(DEFAULT_WALLPAPER_PATH).unwrap().decode().unwrap().into_rgb8();
-
-//     if let Some(size) = foreground_size {
-//         let foreground = Some(resize::fast_resize(&RgbImage::from_raw(buf_size.0, buf_size.1, artwork_buf).unwrap(), size, size, imageops::Triangle));
-
-//     }
-
-//     paste_images(background, Some(foreground), display_geometry, available_geometry).save(GENERATED_WALLPAPER_PATH).unwrap()
-// }
