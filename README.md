@@ -59,3 +59,6 @@ Network Usage spikes: <1mbps
 
 <img src = readme_images/eg_linear.jpg>
 
+### Solid Color Background
+
+<img src = readme_images/eg_solid.jpg>
