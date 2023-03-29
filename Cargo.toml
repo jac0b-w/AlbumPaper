@@ -1,0 +1,18 @@
+[package]
+name = "albumpaper_imagegen"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+image = "0.23.14"
+rayon = "1.5.1"
+
+[lib]
+name = "albumpaper_imagegen"
+crate-type = ["cdylib"]
+
+[dependencies.pyo3]
+version = "0.14.1"
+features = ["extension-module"]
