@@ -45,7 +45,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.help_menu = self.context_menu.addMenu(
             QtGui.QIcon(f"assets/icons/{self.icon_color}/help.png"), "Help"
         )
-        help_latest = self.help_menu.addAction("Lastest Release")
+        help_latest = self.help_menu.addAction("Latest Release")
         help_current = self.help_menu.addAction("This Release")
         github_link = "https://github.com/jac0b-w/AlbumPaper/"
         help_latest.triggered.connect(
@@ -142,7 +142,7 @@ class SettingsWindow(QtWidgets.QDialog):
         self.tray_icon = tray_icon
         self.setWindowTitle("Settings")
         self.setFixedSize(470, 0)
-        settings_icon_path = f"assets/icons/black/settings.png"
+        settings_icon_path = "assets/icons/black/settings.png"
         if os.path.exists(settings_icon_path):
             self.setWindowIcon(QtGui.QIcon(settings_icon_path))
 
@@ -152,6 +152,8 @@ class SettingsWindow(QtWidgets.QDialog):
         self.init_themes_section()
         self.main_layout.addRow(QtWidgets.QLabel(""))
         self.init_layer_section()
+        self.main_layout.addRow(QtWidgets.QLabel(""))
+        self.init_misc_section()
         self.main_layout.addRow(QtWidgets.QLabel(""))
 
         # Save button
@@ -218,7 +220,7 @@ class SettingsWindow(QtWidgets.QDialog):
 
         self.service_combo.setCurrentIndex(index)
         help_link = QtWidgets.QLabel(
-            f'<a href="https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys">'
+            '<a href="https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys">'
             "Where do I find API keys?</a>"
         )
         help_link.linkActivated.connect(
@@ -248,6 +250,7 @@ class SettingsWindow(QtWidgets.QDialog):
                 "Solid",
                 "Linear Gradient",
                 "Radial Gradient",
+                "Colored Noise",
                 "Art",
                 "Wallpaper",
                 "Random",
@@ -295,6 +298,19 @@ class SettingsWindow(QtWidgets.QDialog):
         self.edit_theme_button.clicked.connect(self.edit_themes)
         self.main_layout.addRow("", self.edit_theme_button)
 
+    def init_misc_section(self):
+        self.check_updates_checkbox = QtWidgets.QCheckBox()
+        self.main_layout.addRow("Check for updates", self.check_updates_checkbox)
+        self.check_updates_checkbox.setChecked(
+            ConfigManager.settings["updates"]["check_for_updates"]
+        )
+
+        self.battery_saver_checkbox = QtWidgets.QCheckBox()
+        self.main_layout.addRow("Pause on Battery Saver", self.battery_saver_checkbox)
+        self.battery_saver_checkbox.setChecked(
+            ConfigManager.settings["power"]["disable_on_battery_saver"]
+        )
+
     def save(self):
         service = ["spotify", "last.fm"][self.service_combo.currentIndex()]
         ConfigManager.settings["service"]["name"] = service
@@ -324,6 +340,13 @@ class SettingsWindow(QtWidgets.QDialog):
 
         ConfigManager.settings["theme"]["name"] = self.theme_selector.currentText()
 
+        ConfigManager.settings["updates"][
+            "check_for_updates"
+        ] = self.check_updates_checkbox.isChecked()
+        ConfigManager.settings["power"][
+            "disable_on_battery_saver"
+        ] = self.battery_saver_checkbox.isChecked()
+
         try:
             ConfigManager.save()  # save settings.ini and services.ini
         except ConfigValidationError as e:
@@ -341,11 +364,14 @@ class SettingsWindow(QtWidgets.QDialog):
 
     def background_setEnabled_check(self):
         """
-        Show blur option only when 'Wallpaper' or 'Art' background options
-        are selected
+        Show blur option only when: 'Wallpaper', 'Colored Noise', 'Art' or 'Random' background
+        options are selected
         """
-        self.blur_checkbox.setEnabled(self.background_combo.currentIndex() in (2, 3))
+        blur_indices = (3, 4, 5, 6)
+        self.blur_checkbox.setEnabled(
+            self.background_combo.currentIndex() in blur_indices
+        )
         self.blur_strength.setEnabled(
-            self.background_combo.currentIndex() in (2, 3)
+            self.background_combo.currentIndex() in blur_indices
             and self.blur_checkbox.isChecked()
         )

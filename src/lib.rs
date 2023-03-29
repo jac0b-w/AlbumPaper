@@ -1,14 +1,16 @@
 #![allow(clippy::manual_map)]
-#![allow(clippy::too_many_arguments)]
 
 use fastblur::gaussian_blur;
 use image::{imageops, io::Reader as ImageReader, RgbImage};
-use rayon::prelude::*;
-
-mod colors;
-mod resize;
-
 use pyo3::prelude::*;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+};
+
+mod gradient;
+mod noise;
+mod resize;
 
 const DEFAULT_WALLPAPER_PATH: &str = "images/default_wallpaper.jpg";
 const GENERATED_WALLPAPER_PATH: &str = "images/generated_wallpaper.png";
@@ -60,7 +62,7 @@ fn generate_wallpaper(required_args: RequiredArgs, optional_args: OptionalArgs) 
     let artwork = RgbImage::from_raw(
         required_args.foreground.artwork_size[0],
         required_args.foreground.artwork_size[1],
-        required_args.foreground.artwork_buffer,
+        required_args.foreground.artwork_buffer.clone(),
     )
     .unwrap();
 
@@ -82,30 +84,46 @@ fn generate_wallpaper(required_args: RequiredArgs, optional_args: OptionalArgs) 
             required_args.display_geometry,
             optional_args.blur_radius,
         ),
-        "SolidColor" => {
-            // let downscaled = resize::fast_resize(&artwork, 150, 150);
-            let color = colors::dominant_colors(artwork.as_raw().clone())[0];
-            RgbImage::from_pixel(
-                required_args.display_geometry[0],
-                required_args.display_geometry[1],
-                image::Rgb(color),
-            )
-        }
-        "LinearGradient" => {
-            let [color1, color2] = colors::gradient_colors(artwork.as_raw().clone());
-            linear_gradient(
-                required_args.display_geometry,
-                color1,
-                color2,
-            )
-        },
-        "RadialGradient" => gen_radial_gradient(
+        "SolidColor" => RgbImage::from_pixel(
+            required_args.display_geometry[0],
+            required_args.display_geometry[1],
+            image::Rgb(optional_args.color1.unwrap()),
+        ),
+        "LinearGradient" => gradient::linear(
+            required_args.display_geometry,
+            optional_args.color1.unwrap(),
+            optional_args.color2.unwrap(),
+        ),
+        "RadialGradient" => gradient::radial(
             required_args.display_geometry,
             optional_args.color1.unwrap(),
             optional_args.color2.unwrap(),
             required_args.foreground.artwork_resize,
         ),
-        _ => panic!("Unknown background type"),
+        "ColoredNoise" => {
+            let mut hasher = DefaultHasher::new();
+            required_args.foreground.artwork_buffer.hash(&mut hasher);
+            let seed: u32 = hasher.finish() as u32;
+            let background = noise::colored(
+                required_args.display_geometry,
+                optional_args.color1.unwrap(),
+                optional_args.color2.unwrap(),
+                seed,
+            );
+
+            if let Some(blur_radius) = optional_args.blur_radius {
+                let [width, height] = required_args.display_geometry;
+                add_blur(
+                    &background,
+                    width,
+                    height,
+                    blur_radius as f32,
+                )
+            } else {
+                background
+            }
+        }
+        unknown => panic!("Unknown background type '{unknown}'"),
     };
 
     let artwork_resized = resize::fast_resize(
@@ -165,174 +183,6 @@ fn add_blur(image: &RgbImage, nwidth: u32, nheight: u32, blur_radius: f32) -> Rg
     resize::fast_resize(&blurred_image, nwidth, nheight)
 }
 
-/// Returns the raw bytes of a linear gradient image
-///
-/// # Arguments
-///
-/// * `geometry` - A tuple of the width and height of generated image
-/// * `from_color` - A list of rgb values for the left color of linear gradient
-/// * `to_color` - A list of rgb values for the right color of linear gradient
-///
-/// # Examples (in python)
-///
-/// ```
-/// import albumpaper_rs
-/// from PIL import Image
-///
-/// raw = albumpaper_rs.linear_gradient(
-///     (1920, 1080),
-///     [255, 0, 0],
-///     [0, 0, 255]
-/// )
-///
-/// image =  Image.frombuffer('RGB', [1920, 1080], raw)
-///
-/// ```
-
-fn linear_gradient(geometry: [u32; 2], from_color: Color, to_color: Color) -> RgbImage {
-    let [width, height] = geometry;
-    let tot = (width + height) as usize;
-
-    let channel =
-        |from: u8, to: u8, dist: f32| ((to as f32 * dist) + from as f32 * (1.0 - dist)) as u8;
-
-    let all_colours: Vec<u8> = (0..tot)
-        .flat_map(|dist| {
-            let scaled = dist as f32 / tot as f32;
-            [
-                channel(from_color[0], to_color[0], scaled),
-                channel(from_color[1], to_color[1], scaled),
-                channel(from_color[2], to_color[2], scaled),
-            ]
-        })
-        .collect();
-
-    let mut image = RgbImage::new(width, height);
-    image
-        .par_chunks_exact_mut(3 * width as usize)
-        .enumerate()
-        .for_each(|(nrow, row)| {
-            let start = nrow * 3;
-            let end = start + 3 * width as usize;
-            row.copy_from_slice(&all_colours[start..end]);
-        });
-
-    image
-}
-
-/// Returns the raw bytes of a radial gradient image
-///
-/// # Arguments
-///
-/// * `geometry` - A tuple of the width and height of generated image
-/// * `inner_color` - A list of rgb values for the centre color of radial gradient
-/// * `outer_color` - A list of rgb values for the outer color of radial gradient
-///
-/// # Examples (in python)
-///
-/// ```
-/// import albumpaper_rs
-/// from PIL import Image
-///
-/// raw = albumpaper_rs.radial_gradient(
-///     (1920, 1080),
-///     [255, 0, 0],
-///     [0, 0, 255]
-/// )
-///
-/// image =  Image.frombuffer('RGB', [1920, 1080], raw)
-///
-/// ```
-
-#[inline]
-fn lerp(pct: f32, a: f32, b: f32) -> f32 {
-    pct.mul_add(b - a, a)
-}
-
-#[inline]
-fn distance(x: i32, y: i32) -> f32 {
-    ((x * x + y * y) as f32).sqrt()
-}
-
-fn gen_radial_gradient(
-    geometry: [u32; 2],
-    inner_color: [u8; 3],
-    outer_color: [u8; 3],
-    foreground_size: u32,
-) -> RgbImage {
-    let mut background: RgbImage = RgbImage::new(geometry[0] as u32, geometry[1] as u32);
-
-    // The background will adapt to the foreground size so that the inner_color will be at the edges of the art
-    // and not just at the centre of the image
-    let center = ((geometry[0] / 2) as i32, (geometry[1] / 2) as i32);
-    let foreground_half = (foreground_size / 2) as f32;
-    let max_dist = distance(center.0 as i32, center.1 as i32) - foreground_half;
-    let one_over_max_dist = 1.0 / max_dist;
-
-    let inner_color = inner_color.map(|el| el as f32);
-    let outer_color = outer_color.map(|el| el as f32);
-
-    background
-        .par_chunks_exact_mut(3 * geometry[0] as usize)
-        .enumerate()
-        .for_each(|(pos_y, row)| {
-            for pos_x in 0..geometry[0] {
-                let dist_x = pos_x as i32 - center.0;
-                let dist_y = pos_y as i32 - center.1;
-                let scaled_dist = (distance(dist_x, dist_y) - foreground_half) * one_over_max_dist;
-
-                let pixel_pos = (pos_x * 3) as usize;
-                let pixel = &mut row[pixel_pos..(pixel_pos + 3)];
-
-                pixel[0] = lerp(scaled_dist, inner_color[0], outer_color[0]) as u8;
-                pixel[1] = lerp(scaled_dist, inner_color[1], outer_color[1]) as u8;
-                pixel[2] = lerp(scaled_dist, inner_color[2], outer_color[2]) as u8;
-            }
-        });
-    background
-}
-
-// pub fn artwork(_py: Python, args: RequiredArgs, blur_radius: Option<f32>) {
-//     let [width, height] = args.display_geometry;
-//     let max_dim = std::cmp::max(width, height);
-
-//     let artwork: RgbImage = RgbImage::from_raw(
-//         args.foreground.artwork_size[0],
-//         args.foreground.artwork_size[0],
-//         args.foreground.artwork_buffer,
-//     )
-//     .unwrap();
-
-//     let background = if let Some(blur_radius) = blur_radius {
-//         let half_size: RgbImage = resize::fast_resize(&artwork, max_dim / 4, max_dim / 4);
-//         let half_size = add_blur(&half_size, blur_radius / 4.0);
-//         resize::fast_resize(&half_size, max_dim, max_dim)
-//     } else {
-//         resize::fast_resize(&artwork, max_dim, max_dim)
-//     };
-
-//     let foreground = Some(resize::fast_resize(
-//         &artwork,
-//         args.foreground.unwrap().artwork_resize,
-//         args.foreground.unwrap().artwork_resize,
-//     ));
-
-//     let final_image = paste_images(
-//         background,
-//         foreground,
-//         (args.display_geometry[0], args.display_geometry[1]),
-//         (
-//             args.available_geometry[0],
-//             args.available_geometry[1],
-//             args.available_geometry[2],
-//             args.available_geometry[3],
-//         ),
-//     );
-
-//     // PyBytes::new(py, final_image.as_raw()).into()
-//     final_image.save(GENERATED_WALLPAPER_PATH).unwrap();
-// }
-
 fn paste_images(
     background: &RgbImage,
     foreground: Option<RgbImage>,
@@ -358,48 +208,3 @@ fn paste_images(
     }
     base
 }
-
-// #[pyfunction]
-// pub fn solid_color(
-//     _py: Python,
-//     artwork_buf: Vec<u8>,
-//     buf_size: (u32, u32),
-//     foreground_size: Option<u32>,
-//     display_geometry: (u32, u32),
-//     available_geometry: (u32, u32, u32, u32),
-//     color: [u8; 3],
-// ) {
-//     let (width, height) = display_geometry;
-//     let background = RgbImage::from_pixel(width, height, image::Rgb(color));
-
-//     let foreground = if let Some(size) = foreground_size {
-//         let artwork: RgbImage = RgbImage::from_raw(buf_size.0, buf_size.1, artwork_buf).unwrap();
-//         Some(resize::fast_resize(&artwork, size, size))
-//     } else {
-//         None
-//     };
-
-//     let final_image = paste_images(background, foreground, display_geometry, available_geometry);
-
-//     final_image.save(GENERATED_WALLPAPER_PATH).unwrap();
-// }
-
-// #[pyfunction]
-// pub fn wallpaper(
-//     _py: Python,
-//     artwork_buf: Vec<u8>,
-//     buf_size: (u32, u32),
-//     foreground_size: Option<u32>,
-//     display_geometry: (u32, u32),
-//     available_geometry: (u32, u32, u32, u32),
-// ) {
-
-//     let background = ImageReader::open(DEFAULT_WALLPAPER_PATH).unwrap().decode().unwrap().into_rgb8();
-
-//     if let Some(size) = foreground_size {
-//         let foreground = Some(resize::fast_resize(&RgbImage::from_raw(buf_size.0, buf_size.1, artwork_buf).unwrap(), size, size, imageops::Triangle));
-
-//     }
-
-//     paste_images(background, Some(foreground), display_geometry, available_geometry).save(GENERATED_WALLPAPER_PATH).unwrap()
-// }

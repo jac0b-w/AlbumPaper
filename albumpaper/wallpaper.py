@@ -59,6 +59,7 @@ class GenerateWallpaper:
             "Solid": self.color_background,
             "Linear Gradient": self.linear_gradient_background,
             "Radial Gradient": self.radial_gradient_background,
+            "Colored Noise": self.colored_noise_background,
             "Art": self.art_background,
             "Wallpaper": self.wallpaper_background,
             "Random": self.random_background,
@@ -111,7 +112,7 @@ class GenerateWallpaper:
     def color_difference(c1, c2):
         """
         Input: RGB named tuples
-        Output: An aproximation of percieved color difference of two colors
+        Output: An aproximation of perceived color difference of two colors
         https://www.compuphase.com/cmetric.htm
         """
         r = (c1.r + c2.r) / 2
@@ -154,7 +155,7 @@ class GenerateWallpaper:
         """
         Determine best colours for the gradient
         Firstly get the 7 most dominant colours and pick the most saturated
-        Pair the most saturated colour with the colour that has the largest percieved difference
+        Pair the most saturated colour with the colour that has the largest perceived difference
         """
         dominant_colors = self.dominant_colors(HashableImage(image))
 
@@ -188,6 +189,7 @@ class GenerateWallpaper:
 
     @timer
     def linear_gradient_background(self, image: Image.Image):
+        from_color, to_color = self.gradient_colors(image)
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "LinearGradient",
@@ -195,7 +197,7 @@ class GenerateWallpaper:
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
-            structs.OptionalArguments(None, None, None),
+            structs.OptionalArguments(None, from_color, to_color),
         )
 
     @timer
@@ -212,8 +214,8 @@ class GenerateWallpaper:
         )
 
     @timer
-    def color_background(self, image: Image.Image) -> Image.Image:
-        # color = self.dominant_colors(HashableImage(image))[0]
+    def color_background(self, image: Image.Image):
+        color = self.dominant_colors(HashableImage(image))[0]
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "SolidColor",
@@ -221,7 +223,21 @@ class GenerateWallpaper:
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
-            structs.OptionalArguments(None, None, None),
+            structs.OptionalArguments(None, color, None),
+        )
+
+    @timer
+    def colored_noise_background(self, image: Image.Image):
+        blur: Optional[int] = int(self.blur_strength) if self.blur_enabled else None
+        color1, color2 = self.gradient_colors(image)
+        albumpaper_rs.generate_save_wallpaper(
+            structs.RequiredArguments(
+                "ColoredNoise",
+                structs.Foreground(image, self.foreground_size),
+                self.display_geometry[:2],
+                self.available_geometry,
+            ),
+            structs.OptionalArguments(blur, color1, color2),
         )
 
     @timer
@@ -256,10 +272,11 @@ class GenerateWallpaper:
                 self.color_background,
                 self.linear_gradient_background,
                 self.radial_gradient_background,
+                self.colored_noise_background,
                 self.art_background,
             ]
         )
-        return backgound(album_art)
+        backgound(album_art)
 
 
     def generate(self, image: Image.Image):
