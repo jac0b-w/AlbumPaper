@@ -3,7 +3,7 @@ use noise::NoiseFn;
 use image::RgbImage;
 
 // taken from https://github.com/mazznoer/colorgrad-rs#colored-noise
-pub fn colored(geometry: [u32; 2], color1: [u8; 3], color2: [u8; 3]) -> RgbImage {
+pub fn colored(geometry: [u32; 2], color1: [u8; 3], color2: [u8; 3], seed: u32) -> RgbImage {
     // Map t which is in range [a, b] to range [c, d]
     let remap = |t, a, b, c, d| (t - a) * ((d - c) / (b - a)) + c;
 
@@ -20,7 +20,7 @@ pub fn colored(geometry: [u32; 2], color1: [u8; 3], color2: [u8; 3]) -> RgbImage
         .unwrap()
         .sharp(3, 0.1);
 
-    let ns = noise::OpenSimplex::new(1);
+    let ns = noise::OpenSimplex::new(seed);
     let mut imgbuf = RgbImage::new(width, height);
 
     for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {

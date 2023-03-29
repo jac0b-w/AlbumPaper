@@ -3,6 +3,7 @@
 use fastblur::gaussian_blur;
 use image::{imageops, io::Reader as ImageReader, RgbImage};
 use pyo3::prelude::*;
+use std::{hash::{Hash, Hasher}, collections::hash_map::DefaultHasher};
 
 mod gradient;
 mod noise;
@@ -58,7 +59,7 @@ fn generate_wallpaper(required_args: RequiredArgs, optional_args: OptionalArgs) 
     let artwork = RgbImage::from_raw(
         required_args.foreground.artwork_size[0],
         required_args.foreground.artwork_size[1],
-        required_args.foreground.artwork_buffer,
+        required_args.foreground.artwork_buffer.clone(),
     )
     .unwrap();
 
@@ -96,11 +97,17 @@ fn generate_wallpaper(required_args: RequiredArgs, optional_args: OptionalArgs) 
             optional_args.color2.unwrap(),
             required_args.foreground.artwork_resize,
         ),
-        "ColoredNoise" => noise::colored(
-            required_args.display_geometry,
-            optional_args.color1.unwrap(),
-            optional_args.color2.unwrap(),
-        ),
+        "ColoredNoise" => {
+            let mut hasher = DefaultHasher::new();
+            required_args.foreground.artwork_buffer.hash(&mut hasher);
+            let seed: u32 = hasher.finish() as u32;
+            noise::colored(
+                required_args.display_geometry,
+                optional_args.color1.unwrap(),
+                optional_args.color2.unwrap(),
+                seed
+            )
+        }
         unknown => panic!("Unknown background type '{unknown}'"),
     };
 
