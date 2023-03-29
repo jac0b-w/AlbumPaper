@@ -3,10 +3,11 @@
 This is a system tray app for windows that will change your desktop wallpaper based on the track you are listening to.
 Works with Spotify or Last.fm. An internet connection is required.
 
-### [Download](https://github.com/jac0b-w/AlbumPaper/releases/latest)
+## [Download](https://github.com/jac0b-w/AlbumPaper/releases/latest)
 
 <img src = readme_images/example.gif width='100%'>
 
+#### Buy me a coffee
 [<img src = "https://i.giphy.com/media/TDQOtnWgsBx99cNoyH/giphy.webp" height="65px">](https://www.buymeacoffee.com/jac0b)
 
 ## Getting Started
