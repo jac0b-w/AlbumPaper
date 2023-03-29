@@ -3,7 +3,10 @@
 use fastblur::gaussian_blur;
 use image::{imageops, io::Reader as ImageReader, RgbImage};
 use pyo3::prelude::*;
-use std::{hash::{Hash, Hasher}, collections::hash_map::DefaultHasher};
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+};
 
 mod gradient;
 mod noise;
@@ -101,11 +104,18 @@ fn generate_wallpaper(required_args: RequiredArgs, optional_args: OptionalArgs) 
             let mut hasher = DefaultHasher::new();
             required_args.foreground.artwork_buffer.hash(&mut hasher);
             let seed: u32 = hasher.finish() as u32;
-            noise::colored(
+            let background = noise::colored(
                 required_args.display_geometry,
                 optional_args.color1.unwrap(),
                 optional_args.color2.unwrap(),
-                seed
+                seed,
+            );
+            let [width, height] = required_args.display_geometry;
+            add_blur(
+                &background,
+                width,
+                height,
+                optional_args.blur_radius.unwrap() as f32,
             )
         }
         unknown => panic!("Unknown background type '{unknown}'"),
