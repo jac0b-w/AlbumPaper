@@ -1,18 +1,17 @@
 # AlbumPaper
 
 This is a system tray app for windows that will change your desktop wallpaper based on the track you are listening to.
-Works with Spotify or Last.fm.
+Works with Spotify or Last.fm. An internet connection is required.
+
+### [Download](https://github.com/jac0b-w/AlbumPaper/releases/latest)
 
 <img src = readme_images/example.gif width='100%'>
-
-As the artwork provided is only 640px if you are using a higher resolution than 1080p the artwork will be smaller. However there is an option to resize the image in the settings.
-An internet connection is required.
 
 [<img src = "https://i.giphy.com/media/TDQOtnWgsBx99cNoyH/giphy.webp" height="65px">](https://www.buymeacoffee.com/jac0b)
 
 ## Getting Started
 
-[Download installer for windows](https://github.com/jac0b-w/AlbumPaper/releases/latest)
+[Download installer (windows)](https://github.com/jac0b-w/AlbumPaper/releases/latest)
 
 There is a short initial setup:
 
@@ -49,18 +48,4 @@ Network Usage spikes: <1mbps
 
 ## Examples
 
-### Album Artwork Background
-
-<img src = readme_images/eg_art1.jpg>
-
-<img src = readme_images/eg_art2.jpg>
-
-### Gradient Backgrounds
-
-<img src = readme_images/eg_radial.jpg>
-
-<img src = readme_images/eg_linear.jpg>
-
-### Solid Color Background
-
-<img src = readme_images/eg_solid.jpg>
+<img src = readme_images/eg.jpg>
