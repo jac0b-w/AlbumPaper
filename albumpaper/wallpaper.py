@@ -189,6 +189,7 @@ class GenerateWallpaper:
 
     @timer
     def linear_gradient_background(self, image: Image.Image):
+        from_color, to_color = self.gradient_colors(image)
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "LinearGradient",
@@ -196,7 +197,7 @@ class GenerateWallpaper:
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
-            structs.OptionalArguments(None, None, None),
+            structs.OptionalArguments(None, from_color, to_color),
         )
 
     @timer
@@ -214,7 +215,7 @@ class GenerateWallpaper:
 
     @timer
     def color_background(self, image: Image.Image):
-        # color = self.dominant_colors(HashableImage(image))[0]
+        color = self.dominant_colors(HashableImage(image))[0]
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "SolidColor",
@@ -222,7 +223,7 @@ class GenerateWallpaper:
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
-            structs.OptionalArguments(None, None, None),
+            structs.OptionalArguments(None, color, None),
         )
 
     @timer
@@ -271,6 +272,7 @@ class GenerateWallpaper:
                 self.color_background,
                 self.linear_gradient_background,
                 self.radial_gradient_background,
+                self.colored_noise_background,
                 self.art_background,
             ]
         )

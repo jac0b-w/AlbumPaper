@@ -342,11 +342,12 @@ class SettingsWindow(QtWidgets.QDialog):
 
     def background_setEnabled_check(self):
         """
-        Show blur option only when: 'Wallpaper', 'Colored Noise' or 'Art' background options
-        are selected
+        Show blur option only when: 'Wallpaper', 'Colored Noise', 'Art' or 'Random' background
+        options are selected
         """
-        self.blur_checkbox.setEnabled(self.background_combo.currentIndex() in (3, 4, 5))
+        blur_indices = (3, 4, 5, 6)
+        self.blur_checkbox.setEnabled(self.background_combo.currentIndex() in blur_indices)
         self.blur_strength.setEnabled(
-            self.background_combo.currentIndex() in (3, 4, 5)
+            self.background_combo.currentIndex() in blur_indices
             and self.blur_checkbox.isChecked()
         )
