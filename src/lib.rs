@@ -110,13 +110,18 @@ fn generate_wallpaper(required_args: RequiredArgs, optional_args: OptionalArgs) 
                 optional_args.color2.unwrap(),
                 seed,
             );
-            let [width, height] = required_args.display_geometry;
-            add_blur(
-                &background,
-                width,
-                height,
-                optional_args.blur_radius.unwrap() as f32,
-            )
+
+            if let Some(blur_radius) = optional_args.blur_radius {
+                let [width, height] = required_args.display_geometry;
+                add_blur(
+                    &background,
+                    width,
+                    height,
+                    blur_radius as f32,
+                )
+            } else {
+                background
+            }
         }
         unknown => panic!("Unknown background type '{unknown}'"),
     };
