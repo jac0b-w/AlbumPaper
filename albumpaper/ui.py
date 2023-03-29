@@ -248,6 +248,7 @@ class SettingsWindow(QtWidgets.QDialog):
                 "Solid",
                 "Linear Gradient",
                 "Radial Gradient",
+                "Colored Noise",
                 "Art",
                 "Wallpaper",
                 "Random",

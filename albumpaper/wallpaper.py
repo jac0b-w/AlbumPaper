@@ -59,6 +59,7 @@ class GenerateWallpaper:
             "Solid": self.color_background,
             "Linear Gradient": self.linear_gradient_background,
             "Radial Gradient": self.radial_gradient_background,
+            "Colored Noise": self.colored_noise_background,
             "Art": self.art_background,
             "Wallpaper": self.wallpaper_background,
             "Random": self.random_background,
@@ -212,7 +213,7 @@ class GenerateWallpaper:
         )
 
     @timer
-    def color_background(self, image: Image.Image) -> Image.Image:
+    def color_background(self, image: Image.Image):
         # color = self.dominant_colors(HashableImage(image))[0]
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
@@ -222,6 +223,20 @@ class GenerateWallpaper:
                 self.available_geometry,
             ),
             structs.OptionalArguments(None, None, None),
+        )
+
+    @timer
+    def colored_noise_background(self, image: Image.Image):
+        blur: Optional[int] = int(self.blur_strength) if self.blur_enabled else None
+        color1, color2 = self.gradient_colors(image)
+        albumpaper_rs.generate_save_wallpaper(
+            structs.RequiredArguments(
+                "ColoredNoise",
+                structs.Foreground(image, self.foreground_size),
+                self.display_geometry[:2],
+                self.available_geometry,
+            ),
+            structs.OptionalArguments(blur, color1, color2),
         )
 
     @timer
@@ -259,7 +274,7 @@ class GenerateWallpaper:
                 self.art_background,
             ]
         )
-        return backgound(album_art)
+        backgound(album_art)
 
 
     def generate(self, image: Image.Image):
