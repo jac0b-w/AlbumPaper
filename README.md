@@ -7,7 +7,7 @@ Works with Spotify or Last.fm. An internet connection is required.
 
 <img src = readme_images/example.gif width='100%'>
 
-#### Buy me a coffee
+#### [Buy me a coffee]((https://www.buymeacoffee.com/jac0b))
 [<img src = "https://i.giphy.com/media/TDQOtnWgsBx99cNoyH/giphy.webp" height="65px">](https://www.buymeacoffee.com/jac0b)
 
 ## Getting Started
