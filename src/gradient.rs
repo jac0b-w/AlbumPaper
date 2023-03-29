@@ -2,30 +2,17 @@ use rayon::prelude::*;
 use image::RgbImage;
 
 type Color = [u8; 3];
-/// Returns the raw bytes of a linear gradient image
-///
-/// # Arguments
-///
-/// * `geometry` - A tuple of the width and height of generated image
-/// * `from_color` - A list of rgb values for the left color of linear gradient
-/// * `to_color` - A list of rgb values for the right color of linear gradient
-///
-/// # Examples (in python)
-///
-/// ```
-/// import albumpaper_rs
-/// from PIL import Image
-///
-/// raw = albumpaper_rs.linear_gradient(
-///     (1920, 1080),
-///     [255, 0, 0],
-///     [0, 0, 255]
-/// )
-///
-/// image =  Image.frombuffer('RGB', [1920, 1080], raw)
-///
-/// ```
+/**
+Returns an `RgbImage` of dimentions `geometry` with a linear gradient between
+`from_color` and `to_color`
 
+# Arguments
+
+* `geometry` - A tuple of the width and height of generated image
+* `from_color` - A list of rgb values for the left color of linear gradient
+* `to_color` - A list of rgb values for the right color of linear gradient
+
+*/
 pub fn linear(geometry: [u32; 2], from_color: Color, to_color: Color) -> RgbImage {
     let [width, height] = geometry;
     let tot = (width + height) as usize;
@@ -57,29 +44,17 @@ pub fn linear(geometry: [u32; 2], from_color: Color, to_color: Color) -> RgbImag
     image
 }
 
-/// Returns the raw bytes of a radial gradient image
-///
-/// # Arguments
-///
-/// * `geometry` - A tuple of the width and height of generated image
-/// * `inner_color` - A list of rgb values for the centre color of radial gradient
-/// * `outer_color` - A list of rgb values for the outer color of radial gradient
-///
-/// # Examples (in python)
-///
-/// ```
-/// import albumpaper_rs
-/// from PIL import Image
-///
-/// raw = albumpaper_rs.radial_gradient(
-///     (1920, 1080),
-///     [255, 0, 0],
-///     [0, 0, 255]
-/// )
-///
-/// image =  Image.frombuffer('RGB', [1920, 1080], raw)
-///
-/// ```
+/*
+Returns an `RgbImage` of dimentions `geometry` with a linear gradient between
+`inner_color` and `outer_color`
+
+# Arguments
+
+* `geometry` - A tuple of the width and height of generated image
+* `inner_color` - A list of rgb values for the centre color of radial gradient
+* `outer_color` - A list of rgb values for the outer color of radial gradient
+
+*/
 
 #[inline]
 fn lerp(pct: f32, a: f32, b: f32) -> f32 {
