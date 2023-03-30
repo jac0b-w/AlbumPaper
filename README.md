@@ -5,7 +5,8 @@ Works with Spotify or Last.fm. An internet connection is required.
 
 ## [Download](https://github.com/jac0b-w/AlbumPaper/releases/latest)
 
-<img src = readme_images/example.gif width='100%'>
+<img src = https://user-images.githubusercontent.com/51512690/228698806-3bbfc2c8-f0b5-477d-b965-6ccc9146c609.mp4
+ width='100%'>
 
 #### [Buy me a coffee]((https://www.buymeacoffee.com/jac0b))
 [<img src = "https://i.giphy.com/media/TDQOtnWgsBx99cNoyH/giphy.webp" height="65px">](https://www.buymeacoffee.com/jac0b)
