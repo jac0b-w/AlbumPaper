@@ -3,10 +3,11 @@ from PIL import Image
 
 
 class Foreground:
-    def __init__(self, artwork: Image.Image, artwork_resize: int):
+    def __init__(self, artwork: Image.Image, artwork_resize: int, visable: bool):
         self.artwork_size = artwork.size
         self.artwork_buffer = artwork.tobytes("raw")
         self.artwork_resize = artwork_resize
+        self.visable = visable
 
 
 @dataclass

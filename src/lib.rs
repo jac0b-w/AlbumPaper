@@ -38,6 +38,7 @@ pub struct Foreground {
     artwork_buffer: Vec<u8>,
     artwork_size: [u32; 2],
     artwork_resize: u32,
+    visable: bool,
 }
 
 #[derive(FromPyObject, Hash, PartialEq, Eq, Clone)]
@@ -113,27 +114,26 @@ fn generate_wallpaper(required_args: RequiredArgs, optional_args: OptionalArgs) 
 
             if let Some(blur_radius) = optional_args.blur_radius {
                 let [width, height] = required_args.display_geometry;
-                add_blur(
-                    &background,
-                    width,
-                    height,
-                    blur_radius as f32,
-                )
+                add_blur(&background, width, height, blur_radius as f32)
             } else {
                 background
             }
         }
         unknown => panic!("Unknown background type '{unknown}'"),
     };
+    let artwork_resized = if required_args.foreground.visable {
+        Some(resize::fast_resize(
+            &artwork,
+            required_args.foreground.artwork_resize,
+            required_args.foreground.artwork_resize,
+        ))
+    } else {
+        None
+    };
 
-    let artwork_resized = resize::fast_resize(
-        &artwork,
-        required_args.foreground.artwork_resize,
-        required_args.foreground.artwork_resize,
-    );
     paste_images(
         &background,
-        Some(artwork_resized),
+        artwork_resized,
         required_args.display_geometry,
         required_args.available_geometry,
     )

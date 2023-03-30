@@ -23,7 +23,7 @@ GENERATED_WALLPAPER_PATH = "images/generated_wallpaper.png"
 
 
 def rust_image(method):
-    @functools.wraps(method) # keeps method name, docstring etc
+    @functools.wraps(method)  # keeps method name, docstring etc
     def _wrapper(
         self,
         artwork: Optional[Image.Image],
@@ -91,7 +91,9 @@ class GenerateWallpaper:
         """
         ar = numpy.asarray(hashable_image.image.resize((150, 150), 0))
         shape = ar.shape
-        ar = ar.reshape(numpy.product(shape[:2]), shape[2]).astype(float) # flatten to shape (width*height, 3)
+        ar = ar.reshape(numpy.product(shape[:2]), shape[2]).astype(
+            float
+        )  # flatten to shape (width*height, 3)
 
         kmeans = sklearn.cluster.MiniBatchKMeans(
             n_clusters=10, init="k-means++", max_iter=20, random_state=1000
@@ -120,9 +122,9 @@ class GenerateWallpaper:
         delta_g = c1.g - c2.g
         delta_b = c1.b - c2.b
         return (
-            (2 + r / 256) * delta_r ** 2
-            + 4 * delta_g ** 2
-            + (2 + (255 - r) / 256) * delta_b ** 2
+            (2 + r / 256) * delta_r**2
+            + 4 * delta_g**2
+            + (2 + (255 - r) / 256) * delta_b**2
         ) ** 0.5
 
     @staticmethod
@@ -193,7 +195,7 @@ class GenerateWallpaper:
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "LinearGradient",
-                structs.Foreground(image, self.foreground_size),
+                structs.Foreground(image, self.foreground_size, self.foreground_enabled),
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
@@ -206,7 +208,7 @@ class GenerateWallpaper:
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "RadialGradient",
-                structs.Foreground(image, self.foreground_size),
+                structs.Foreground(image, self.foreground_size, self.foreground_enabled),
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
@@ -219,7 +221,7 @@ class GenerateWallpaper:
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "SolidColor",
-                structs.Foreground(image, self.foreground_size),
+                structs.Foreground(image, self.foreground_size, self.foreground_enabled),
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
@@ -233,7 +235,7 @@ class GenerateWallpaper:
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "ColoredNoise",
-                structs.Foreground(image, self.foreground_size),
+                structs.Foreground(image, self.foreground_size, self.foreground_enabled),
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
@@ -246,7 +248,7 @@ class GenerateWallpaper:
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "Artwork",
-                structs.Foreground(image, self.foreground_size),
+                structs.Foreground(image, self.foreground_size, self.foreground_enabled),
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
@@ -259,7 +261,7 @@ class GenerateWallpaper:
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "DefaultWallpaper",
-                structs.Foreground(image, self.foreground_size),
+                structs.Foreground(image, self.foreground_size, self.foreground_enabled),
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
@@ -277,7 +279,6 @@ class GenerateWallpaper:
             ]
         )
         backgound(album_art)
-
 
     def generate(self, image: Image.Image):
         if isinstance(image, Image.Image):
