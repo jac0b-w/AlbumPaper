@@ -241,7 +241,7 @@ class SettingsWindow(QtWidgets.QDialog):
         self.foreground_size.setValue(ConfigManager.settings["foreground"]["size"])
         self.foreground_size.setEnabled(self.foreground_checkbox.isChecked())
         self.foreground_checkbox.stateChanged.connect(
-            lambda checked: self.foreground_size.setVisible(checked)
+            lambda checked: self.foreground_size.setEnabled(checked)
         )
 
         self.background_combo = QtWidgets.QComboBox()
