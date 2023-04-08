@@ -25,10 +25,10 @@ There is a short initial setup:
         - Restart your pc
         - Failing that please create an issue
 
-If you are running the source you will also need to **(this is not required if you are using the installer)**:
+If you are running from source you will also need to **(this is not required if you are using the installer)**:
 
-- Install the dependencies ```pip install -r requirements.txt``` (Poetry users can use pyproject.toml)
-- Rename ```_services.ini``` to ```services.ini```
+- Install the dependencies ```pip install -r requirements.txt```
+- Rename ```_services.ini``` to ```services.ini``` and add API keys
 
 
 ### Getting your API Keys
