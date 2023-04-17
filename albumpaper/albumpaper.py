@@ -16,8 +16,6 @@ VERSION = "v4.0.1"  # as tagged on github
 """
 Displays a toast message if a new release is detected
 """
-
-
 def check_for_updates(tray_icon):
     if not ConfigManager.settings["updates"]["check_for_updates"]:
         return
@@ -188,7 +186,7 @@ class WorkerThread(QtCore.QThread):
                 and not ConfigManager.settings["power"]["disable_on_battery_saver"]
             )
 
-            self.disabled = False
+            self.disabled = ConfigManager.settings["miscellaneous"]["paused"]
 
             self.get_art = CurrentArt(service=ConfigManager.settings["service"]["name"])
 
