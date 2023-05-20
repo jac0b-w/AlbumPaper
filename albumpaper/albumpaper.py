@@ -11,7 +11,7 @@ from wallpaper import Wallpaper, GenerateWallpaper
 from spotifyauth import SpotifyAuth
 import winapi, misc
 
-VERSION = "v4.0.1"  # as tagged on github
+VERSION = "v4.0.2"  # as tagged on github
 
 """
 Displays a toast message if a new release is detected
