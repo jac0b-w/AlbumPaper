@@ -1,6 +1,6 @@
 # external imports
 import os, sys, spotipy, requests, logging, logging.handlers, threading, pkg_resources, time
-from typing import Optional
+from typing import Optional, Callable
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
 from io import BytesIO
@@ -15,12 +15,11 @@ import winapi, misc
 
 VERSION = "v4.0.2"  # as tagged on github
 
-"""
-Displays a toast message if a new release is detected
-"""
 
-
-def check_for_updates(tray_icon):
+def check_for_updates(toast: Callable):
+    """
+    Displays a toast message if a new release is detected
+    """
     if not ConfigManager.settings["updates"]["check_for_updates"]:
         return
 
@@ -37,15 +36,15 @@ def check_for_updates(tray_icon):
     if pkg_resources.parse_version(VERSION) < pkg_resources.parse_version(
         latest_version
     ):
-        tray_icon.showMessage("New update", f"Update {latest_version} available")
+        toast("New update", f"Update {latest_version} available")
 
 
 @dataclass
 class TrackData:
     """
     service: "spotify" or "last.fm"
+    track_info: dictionary containing additional information such as uri
     """
-
     service: str
     now_playing: bool
     image: Optional[Image.Image]
@@ -372,7 +371,7 @@ if __name__ in "__main__":
             if not os.path.exists("images/default_wallpaper.jpg"):
                 Wallpaper.set_default()
 
-            check_for_updates(tray_icon=tray_icon)
+            check_for_updates(toast=tray_icon.showMessage)
 
             try:
                 ConfigManager.validate_service()
