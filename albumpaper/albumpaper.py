@@ -1,8 +1,10 @@
 # external imports
 import os, sys, spotipy, requests, logging, logging.handlers, threading, pkg_resources, time
+from typing import Optional
 from PySide2 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
 from io import BytesIO
+from dataclasses import dataclass
 
 # In this directory
 from ui import SystemTrayIcon, SettingsWindow
@@ -16,6 +18,8 @@ VERSION = "v4.0.2"  # as tagged on github
 """
 Displays a toast message if a new release is detected
 """
+
+
 def check_for_updates(tray_icon):
     if not ConfigManager.settings["updates"]["check_for_updates"]:
         return
@@ -36,15 +40,28 @@ def check_for_updates(tray_icon):
         tray_icon.showMessage("New update", f"Update {latest_version} available")
 
 
+@dataclass
+class TrackData:
+    """
+    service: "spotify" or "last.fm"
+    """
+
+    service: str
+    now_playing: bool
+    image: Optional[Image.Image]
+    track_info: dict
+
+
 class CurrentArt:
     def __init__(self, service: str):
         if service == "last.fm":  # using lastfm
             self.art_url = self.lastfm_art_url
+            with Image.open("assets/missing_art.jpg") as image:
+                self.missing_art = image.convert("RGB")
         else:
             self.art_url = self.spotify_art_url
             self.spotify = SpotifyAuth(tray_icon.showMessage)
 
-        self.missing_art = Image.open("assets/missing_art.jpg").convert("RGB")
         self.previous_image_url = None
         self.previously_generated_url = None
 
@@ -75,7 +92,7 @@ class CurrentArt:
                 "format": "json",
             }
 
-            response = requests.get(url, headers=headers, params=payload)
+            response = requests.get(url, headers=headers, params=payload, timeout=10)
             return response.json()
         except:
             print("[ERROR] Last.fm request error")
@@ -84,7 +101,9 @@ class CurrentArt:
     def lastfm_art_url(self):
         try:
             current = self.lastfm_request()["recenttracks"]["track"][0]
-        except KeyError:  # Occurs when last.fm api fails (breifly) or API keys are invalid
+        except (
+            KeyError
+        ):  # Occurs when last.fm api fails (breifly) or API keys are invalid
             return None
         except:
             # occurs with poor/no connection
@@ -104,7 +123,8 @@ class CurrentArt:
     def get_image(url: str) -> Image.Image:
         try:
             response_content = misc.download_image(url)
-            return Image.open(BytesIO(response_content)).convert("RGB")
+            with Image.open(BytesIO(response_content)) as image:
+                return image.convert("RGB")
         except requests.exceptions.MissingSchema:
             return None
 
@@ -138,8 +158,10 @@ class CurrentArt:
             art = self.get_image(image_url)
             if art is None:  # If image couldn't be downloaded
                 return "default"
-            # if downloaded image is last.fm missing_art image
-            elif ImageChops.difference(art, self.missing_art).getbbox() is None:
+            elif (ConfigManager.settings["service"]["name"] == "last.fm") and (
+                ImageChops.difference(art, self.missing_art).getbbox() is None
+            ):
+                print("Missing Image detected")
                 return "default"
             else:
                 self.previously_generated_url = image_url
@@ -200,6 +222,7 @@ class WorkerThread(QtCore.QThread):
 
                 start = time.time()
                 image = self.get_art.get_current_art()
+                # spotify_code call here if image is actually an image
                 wallaper_generator.generate(image)
 
                 if type(image) == Image.Image:
@@ -315,7 +338,6 @@ exit_code = 0, quit app
 """
 
 if __name__ in "__main__":
-
     exit_code = 1
 
     while exit_code == 1:

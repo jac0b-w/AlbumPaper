@@ -329,5 +329,5 @@ class Wallpaper:
             try:
                 shutil.copy(ubuf.value, DEFAULT_WALLPAPER_PATH)
             except FileNotFoundError:
-                image = Image.new("RGB", (1, 1))
-                image.save(DEFAULT_WALLPAPER_PATH, "JPEG", quality=100)
+                with Image.new("RGB", (1, 1)) as image:
+                    image.save(DEFAULT_WALLPAPER_PATH, "JPEG", quality=100)                
