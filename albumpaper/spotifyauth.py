@@ -21,7 +21,7 @@ class SpotifyAuth:
         self.sp_oauth = spotipy.SpotifyOAuth(
             client_id,
             client_secret,
-            redirect_uri="http://localhost:8080/",
+            redirect_uri=ConfigManager.settings["service"]["redirect_uri"],
             scope="user-read-currently-playing",
             cache_path=f".cache-{hashed_keys}",
             show_dialog=True,
