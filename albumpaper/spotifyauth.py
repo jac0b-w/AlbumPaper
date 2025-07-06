@@ -46,6 +46,9 @@ class SpotifyAuth:
             raise e
 
     def refresh_token(self):
+        """
+        Refreshes spotify API token if expired
+        """
         try:
             if self.sp_oauth.is_token_expired(token_info=self.token_info):
                 self.token_info = self.sp_oauth.refresh_access_token(

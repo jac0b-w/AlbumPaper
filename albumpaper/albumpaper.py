@@ -26,6 +26,7 @@ def check_for_updates(toast: Callable):
     try:
         response = requests.get(
             "https://api.github.com/repos/jac0b-w/AlbumPaper/releases/latest",
+            timeout=10,
         )
         latest_version: str = response.json()["tag_name"]
     except Exception:
@@ -40,42 +41,71 @@ def check_for_updates(toast: Callable):
 
 
 @dataclass
-class TrackData:
+class Track:
     """
+    General object for track information
+
     service: "spotify" or "last.fm"
+    image: url of album art
     track_info: dictionary containing additional information such as uri
+    now_playing: whether the track is currently playing
+    image: optional PIL Image object
     """
+
     service: str
-    now_playing: bool
-    image: Optional[Image.Image]
+    image_url: str
     track_info: dict
+    now_playing: bool
+    image: Optional[Image.Image] = None
+    same_as_previous: bool = False
+
+    def add_image(self, image: Optional[Image.Image]):
+        self.image = image
+
+    def similar(self, other) -> bool:
+        """
+        Returns:
+            (bool): True if wallpaper is not changing from previously set wallpaper
+        """
+        if other is None:
+            self.same_as_previous = True
+        if self.image_url == other.image_url and self.now_playing == other.now_playing:
+            self.same_as_previous = True
+
+        return self.same_as_previous
 
 
 class CurrentArt:
     def __init__(self, service: str):
         if service == "last.fm":  # using lastfm
-            self.art_url = self.lastfm_art_url
+            self.track_data = self.lastfm_track
             with Image.open("assets/missing_art.jpg") as image:
                 self.missing_art = image.convert("RGB")
         else:
-            self.art_url = self.spotify_art_url
-            self.spotify = SpotifyAuth(tray_icon.showMessage)
+            self.track_data = self.spotify_track
+            self.spotify = SpotifyAuth(toast=tray_icon.showMessage)
 
-        self.previous_image_url = None
+        self.previous_track = Track("", None, {}, False)
         self.previously_generated_url = None
 
-    def spotify_art_url(self) -> str:
+    def spotify_track(self) -> Track:
         try:
             self.spotify.refresh_token()
             current = self.spotify.api.currently_playing()
             if current["is_playing"]:
-                return current["item"]["album"]["images"][0]["url"]
+                return Track(
+                    "spotify", current["item"]["album"]["images"][0]["url"], {}, True
+                )
             else:
-                return "default"
+                return Track(
+                    service="spotify", image_url=None, track_info={}, now_playing=False
+                )
         except spotipy.client.SpotifyException:  # Token expired
             self.spotify.refresh_token()
         except:  # local tracks, no devices playing
-            return "default"
+            return Track(
+                service="spotify", image_url=None, track_info={}, now_playing=False
+            )
 
     def lastfm_request(self):
         try:
@@ -97,25 +127,49 @@ class CurrentArt:
             print("[ERROR] Last.fm request error")
             return None
 
-    def lastfm_art_url(self):
+    def lastfm_track(self) -> Track:
+        """
+        Returns:
+            Track
+        """
         try:
             current = self.lastfm_request()["recenttracks"]["track"][0]
         except (
             KeyError
         ):  # Occurs when last.fm api fails (breifly) or API keys are invalid
-            return None
+            return Track(
+                service="last.fm",
+                image_url=None,
+                track_info={},
+                now_playing=False,
+                same_as_previous=True,
+            )
         except:
             # occurs with poor/no connection
-            return "default"
+            return Track(
+                service="last.fm", image_url=None, track_info={}, now_playing=False
+            )
         try:
             if current["@attr"]["nowplaying"].lower() == "true":
-                return current["image"][0]["#text"].replace(
-                    "/i/u/34s/", "/i/u/600x600/"
-                )  # find 600px version
+                return Track(
+                    service="last.fm",
+                    image_url=current["image"][0]["#text"].replace(
+                        "/i/u/34s/", "/i/u/600x600/"
+                    ),  # use 600x600 url
+                    track_info={},
+                    now_playing=True,
+                )
+                # return current["image"][0]["#text"].replace(
+                #     "/i/u/34s/", "/i/u/600x600/"
+                # )  # find 600px version
             else:  # when track is not playing
-                return "default"
+                return Track(
+                    service="last.fm", image_url=None, track_info={}, now_playing=False
+                )
         except:  # occurs when the user isn't playing a track
-            return "default"
+            return Track(
+                service="last.fm", image_url=None, track_info={}, now_playing=False
+            )
 
     @staticmethod
     @misc.timer
@@ -129,10 +183,8 @@ class CurrentArt:
 
     def get_current_art(self):
         """
-        3 possible inputs (from self.art_url):
-        url string   | Set wallpaper to this image (if it's not lastfm missing image)
-        "default"    | Set default wallpaper
-        None         | Do not change wallpaper
+        Input:
+        current_track (Track): The current track
 
         4 Possible outputs
         Image.Image  | Generate and set wallpaper to this image
@@ -140,21 +192,23 @@ class CurrentArt:
         "generated"  | Set wallpaper to last generated wallpaper
         None         | Do not change wallpaper
         """
-        image_url = self.art_url()
-        if image_url == self.previous_image_url:  # Image hasn't changed
+        current_track: Track = self.track_data()
+
+        if current_track.similar(self.previous_track):
             return None
 
-        self.previous_image_url = image_url
+        self.previous_track = current_track
 
-        if image_url in ("default", None):
-            return image_url
+        if not current_track.now_playing:
+            return "default"
         else:  # setting a new non-default wallpaper
             if (
-                self.previously_generated_url == image_url
+                self.previously_generated_url == current_track.image_url
             ):  # wallpaper has already been generated
                 return "generated"
 
-            art = self.get_image(image_url)
+            # when wallpaper has not already been generated
+            art = self.get_image(current_track.image_url)
             if art is None:  # If image couldn't be downloaded
                 return "default"
             elif (ConfigManager.settings["service"]["name"] == "last.fm") and (
@@ -163,7 +217,7 @@ class CurrentArt:
                 print("Missing Image detected")
                 return "default"
             else:
-                self.previously_generated_url = image_url
+                self.previously_generated_url = current_track.image_url
                 return art
 
 
@@ -197,10 +251,9 @@ class BatterySaverCheckThread(QtCore.QThread):
 
 
 class WorkerThread(QtCore.QThread):
+    sleep = threading.Event()  # improves pause responsiveness
     def run(self):
         try:
-            self.sleep = threading.Event()  # improves pause responsiveness
-
             self._pause_request = ConfigManager.settings["miscellaneous"]["paused"]
             self._battery_saver = (
                 winapi.battery_saver_enabled()
@@ -224,7 +277,7 @@ class WorkerThread(QtCore.QThread):
                 # spotify_code call here if image is actually an image
                 wallaper_generator.generate(image)
 
-                if type(image) == Image.Image:
+                if isinstance(image, Image.Image):
                     print(f"TOTAL TIME = {time.time() - start}")
 
                 self.sleep.wait(request_interval)
@@ -241,7 +294,7 @@ class WorkerThread(QtCore.QThread):
         else:
             self.sleep.set()
             try:
-                self.get_art.previous_image_url = None
+                self.get_art.previous_track = None
             except AttributeError:
                 pass
 

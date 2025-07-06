@@ -44,18 +44,6 @@ pub fn linear(geometry: [u32; 2], from_color: Color, to_color: Color) -> RgbImag
     image
 }
 
-/*
-Returns an `RgbImage` of dimentions `geometry` with a linear gradient between
-`inner_color` and `outer_color`
-
-# Arguments
-
-* `geometry` - A tuple of the width and height of generated image
-* `inner_color` - A list of rgb values for the centre color of radial gradient
-* `outer_color` - A list of rgb values for the outer color of radial gradient
-
-*/
-
 #[inline]
 fn lerp(pct: f32, a: f32, b: f32) -> f32 {
     pct.mul_add(b - a, a)
@@ -66,6 +54,17 @@ fn distance(x: i32, y: i32) -> f32 {
     ((x * x + y * y) as f32).sqrt()
 }
 
+/*
+Returns an `RgbImage` of dimentions `geometry` with a radial gradient between
+`inner_color` and `outer_color`
+
+# Arguments
+
+* `geometry` - A tuple of the width and height of generated image
+* `inner_color` - A list of rgb values for the centre color of radial gradient
+* `outer_color` - A list of rgb values for the outer color of radial gradient
+
+*/
 pub fn radial(
     geometry: [u32; 2],
     inner_color: [u8; 3],
