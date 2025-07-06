@@ -1,4 +1,5 @@
 import ast, configobj, validate
+from pathlib import Path
 
 class ConfigValidationError(Exception):
     def __init__(self, message: str) -> None:
@@ -7,13 +8,23 @@ class ConfigValidationError(Exception):
 
 class ConfigManager:
     _settings_path = "settings.ini"
+    
+    # use developer API keys if the file exists
+    _dev_services_path = "services-dev.ini"
     _services_path = "services.ini"
+
     _validator = validate.Validator()
     
+    dev_services_file = Path(_dev_services_path)
+    if dev_services_file.is_file():
+        print("Using developer API keys")
+        services = configobj.ConfigObj(_dev_services_path)
+    else:
+        services = configobj.ConfigObj(_services_path)
+
     settings = configobj.ConfigObj(_settings_path, configspec = "configspec.ini")
     settings.validate(_validator)
-    services = configobj.ConfigObj(_services_path)
-
+    
     @classmethod
     def validate_service(cls):
         if cls.settings["service"]["name"] == "spotify":

@@ -3,7 +3,7 @@ albumpaper/images
 dist/
 build/
 .cache*
-services.ini
+*-dev.*
 test*
 *pyc
 *.spec
