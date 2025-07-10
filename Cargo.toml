@@ -14,7 +14,7 @@ fast_image_resize = "1.0.0"
 rand = "0.9.1"
 
 # Colored noise
-colorgrad = "0.6.2"
+colorgrad = "0.7.2"
 noise = "0.8.2"
 
 [lib]

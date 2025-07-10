@@ -1,17 +1,7 @@
+use colorgrad::Gradient;
 use image::RgbImage;
 use rand::Rng;
 use rayon::prelude::*;
-
-type Color = [u8; 3];
-
-#[inline]
-fn lerp_color(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
-    [
-        t.mul_add(b[0] - a[0], a[0]),
-        t.mul_add(b[1] - a[1], a[1]),
-        t.mul_add(b[2] - a[2], a[2]),
-    ]
-}
 
 #[inline]
 fn quantize_color_channel(c: f32) -> u8 {
@@ -29,34 +19,40 @@ Returns an `RgbImage` of dimentions `geometry` with a linear gradient between
 * `to_color` - A list of rgb values for the right color of linear gradient
 
 */
-pub fn linear(geometry: [u32; 2], from_color: Color, to_color: Color) -> RgbImage {
-    use rand::Rng;
+pub fn linear(geometry: [u32; 2], from_color: [u8; 3], to_color: [u8; 3]) -> RgbImage {
     let [width, height] = geometry;
 
-    let from_color = from_color.map(|c| c as f32);
-    let to_color = to_color.map(|c| c as f32);
-
     let mut image = RgbImage::new(width, height);
+
+    let max_t = (width + height) as f32;
+
+    let grad = colorgrad::GradientBuilder::new()
+        .colors(&[
+            colorgrad::Color::from_rgba8(from_color[0], from_color[1], from_color[2], 255),
+            colorgrad::Color::from_rgba8(to_color[0], to_color[1], to_color[2], 255),
+        ])
+        .domain(&[0.0, max_t])
+        .build::<colorgrad::LinearGradient>()
+        .unwrap();
 
     image
         .par_chunks_exact_mut(3 * width as usize)
         .enumerate()
         .for_each(|(y, row)| {
-
             let mut rng = rand::rng();
 
             for x in 0..width {
-                let t = (x as f32 + y as f32) / (width as f32 + height as f32);
-                
-                let base = lerp_color(from_color, to_color, t);
+                let t = x as f32 + y as f32;
+
+                let base = grad.at(t).to_array();
                 let dither = (rng.random::<f32>() - 0.5) + (rng.random::<f32>() - 0.5);
+
                 let pixel = &mut row[(x * 3) as usize..(x * 3 + 3) as usize];
-                pixel[0] = quantize_color_channel(base[0] + dither);
-                pixel[1] = quantize_color_channel(base[1] + dither);
-                pixel[2] = quantize_color_channel(base[2] + dither);
+                pixel[0] = quantize_color_channel(base[0] * 255.0 + dither);
+                pixel[1] = quantize_color_channel(base[1] * 255.0 + dither);
+                pixel[2] = quantize_color_channel(base[2] * 255.0 + dither);
             }
         });
-
     image
 }
 
@@ -89,11 +85,17 @@ pub fn radial(
     // and not just at the centre of the image
     let center = ((geometry[0] / 2) as i32, (geometry[1] / 2) as i32);
     let foreground_half = (foreground_size / 2) as f32;
-    let max_dist = distance(center.0, center.1) - foreground_half;
-    let one_over_max_dist = 1.0 / max_dist;
 
-    let inner_color = inner_color.map(|el| el as f32);
-    let outer_color = outer_color.map(|el| el as f32);
+    let max_t = distance(center.0, center.1) - foreground_half;
+
+    let grad = colorgrad::GradientBuilder::new()
+        .colors(&[
+            colorgrad::Color::from_rgba8(inner_color[0], inner_color[1], inner_color[2], 255),
+            colorgrad::Color::from_rgba8(outer_color[0], outer_color[1], outer_color[2], 255),
+        ])
+        .domain(&[0.0, max_t])
+        .build::<colorgrad::LinearGradient>()
+        .unwrap();
 
     background
         .par_chunks_exact_mut(3 * geometry[0] as usize)
@@ -104,18 +106,17 @@ pub fn radial(
             for pos_x in 0..geometry[0] {
                 let dist_x = pos_x as i32 - center.0;
                 let dist_y = pos_y as i32 - center.1;
-                let scaled_dist = (distance(dist_x, dist_y) - foreground_half) * one_over_max_dist;
+                let t = distance(dist_x, dist_y) - foreground_half;
 
                 let pixel_pos = (pos_x * 3) as usize;
                 let pixel = &mut row[pixel_pos..(pixel_pos + 3)];
 
-                let temp_pix = lerp_color(inner_color, outer_color, scaled_dist);
-
+                let base = grad.at(t).to_array();
                 let dither = (rng.random::<f32>() - 0.5) + (rng.random::<f32>() - 0.5);
 
-                pixel[0] = quantize_color_channel(temp_pix[0] + dither);
-                pixel[1] = quantize_color_channel(temp_pix[1] + dither);
-                pixel[2] = quantize_color_channel(temp_pix[2] + dither);
+                pixel[0] = quantize_color_channel(base[0] * 255.0 + dither);
+                pixel[1] = quantize_color_channel(base[1] * 255.0 + dither);
+                pixel[2] = quantize_color_channel(base[2] * 255.0 + dither);
             }
         });
     background
