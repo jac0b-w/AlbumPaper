@@ -16,8 +16,14 @@ const DEFAULT_WALLPAPER_PATH: &str = "images/default_wallpaper.jpg";
 const GENERATED_WALLPAPER_PATH: &str = "images/generated_wallpaper.png";
 
 // Define module
+// #[pymodule]
+// fn albumpaper_rs(_py: Python, module: &PyModule) -> PyResult<()> {
+//     module.add_function(wrap_pyfunction!(generate_save_wallpaper, module)?)?;
+//     Ok(())
+// }
+
 #[pymodule]
-fn albumpaper_rs(_py: Python, module: &PyModule) -> PyResult<()> {
+fn albumpaper_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(generate_save_wallpaper, module)?)?;
     Ok(())
 }

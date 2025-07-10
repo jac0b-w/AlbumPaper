@@ -1,7 +1,23 @@
-use rayon::prelude::*;
 use image::RgbImage;
+use rand::Rng;
+use rayon::prelude::*;
 
 type Color = [u8; 3];
+
+#[inline]
+fn lerp_color(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
+    [
+        t.mul_add(b[0] - a[0], a[0]),
+        t.mul_add(b[1] - a[1], a[1]),
+        t.mul_add(b[2] - a[2], a[2]),
+    ]
+}
+
+#[inline]
+fn quantize_color_channel(c: f32) -> u8 {
+    c.round().clamp(0.0, 255.0) as u8
+}
+
 /**
 Returns an `RgbImage` of dimentions `geometry` with a linear gradient between
 `from_color` and `to_color`
@@ -14,31 +30,31 @@ Returns an `RgbImage` of dimentions `geometry` with a linear gradient between
 
 */
 pub fn linear(geometry: [u32; 2], from_color: Color, to_color: Color) -> RgbImage {
+    use rand::Rng;
     let [width, height] = geometry;
-    let tot = (width + height) as usize;
 
-    let channel =
-        |from: u8, to: u8, dist: f32| ((to as f32 * dist) + from as f32 * (1.0 - dist)) as u8;
-
-    let all_colours: Vec<u8> = (0..tot)
-        .flat_map(|dist| {
-            let scaled = dist as f32 / tot as f32;
-            [
-                channel(from_color[0], to_color[0], scaled),
-                channel(from_color[1], to_color[1], scaled),
-                channel(from_color[2], to_color[2], scaled),
-            ]
-        })
-        .collect();
+    let from_color = from_color.map(|c| c as f32);
+    let to_color = to_color.map(|c| c as f32);
 
     let mut image = RgbImage::new(width, height);
+
     image
         .par_chunks_exact_mut(3 * width as usize)
         .enumerate()
-        .for_each(|(nrow, row)| {
-            let start = nrow * 3;
-            let end = start + 3 * width as usize;
-            row.copy_from_slice(&all_colours[start..end]);
+        .for_each(|(y, row)| {
+
+            let mut rng = rand::rng();
+
+            for x in 0..width {
+                let t = (x as f32 + y as f32) / (width as f32 + height as f32);
+                
+                let base = lerp_color(from_color, to_color, t);
+                let dither = (rng.random::<f32>() - 0.5) + (rng.random::<f32>() - 0.5);
+                let pixel = &mut row[(x * 3) as usize..(x * 3 + 3) as usize];
+                pixel[0] = quantize_color_channel(base[0] + dither);
+                pixel[1] = quantize_color_channel(base[1] + dither);
+                pixel[2] = quantize_color_channel(base[2] + dither);
+            }
         });
 
     image
@@ -55,11 +71,6 @@ Returns an `RgbImage` of dimentions `geometry` with a linear gradient between
 * `outer_color` - A list of rgb values for the outer color of radial gradient
 
 */
-
-#[inline]
-fn lerp(pct: f32, a: f32, b: f32) -> f32 {
-    pct.mul_add(b - a, a)
-}
 
 #[inline]
 fn distance(x: i32, y: i32) -> f32 {
@@ -88,6 +99,8 @@ pub fn radial(
         .par_chunks_exact_mut(3 * geometry[0] as usize)
         .enumerate()
         .for_each(|(pos_y, row)| {
+            let mut rng = rand::rng();
+
             for pos_x in 0..geometry[0] {
                 let dist_x = pos_x as i32 - center.0;
                 let dist_y = pos_y as i32 - center.1;
@@ -96,9 +109,13 @@ pub fn radial(
                 let pixel_pos = (pos_x * 3) as usize;
                 let pixel = &mut row[pixel_pos..(pixel_pos + 3)];
 
-                pixel[0] = lerp(scaled_dist, inner_color[0], outer_color[0]) as u8;
-                pixel[1] = lerp(scaled_dist, inner_color[1], outer_color[1]) as u8;
-                pixel[2] = lerp(scaled_dist, inner_color[2], outer_color[2]) as u8;
+                let temp_pix = lerp_color(inner_color, outer_color, scaled_dist);
+
+                let dither = (rng.random::<f32>() - 0.5) + (rng.random::<f32>() - 0.5);
+
+                pixel[0] = quantize_color_channel(temp_pix[0] + dither);
+                pixel[1] = quantize_color_channel(temp_pix[1] + dither);
+                pixel[2] = quantize_color_channel(temp_pix[2] + dither);
             }
         });
     background

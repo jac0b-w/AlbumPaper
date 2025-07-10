@@ -11,6 +11,7 @@ rayon = "1.5.1"
 fastblur = { git = "https://github.com/fschutt/fastblur" }
 ordered-float = { version = "3.0", default-features = false }
 fast_image_resize = "1.0.0"
+rand = "0.9.1"
 
 # Colored noise
 colorgrad = "0.6.2"
@@ -21,5 +22,5 @@ name = "albumpaper_rs"
 crate-type = ["cdylib"]
 
 [dependencies.pyo3]
-version = "0.18.2"
+version = "0.25.1"
 features = ["extension-module"]
