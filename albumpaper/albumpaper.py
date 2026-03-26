@@ -16,6 +16,8 @@ VERSION = "v4.1.0"  # as tagged on github
 """
 Displays a toast message if a new release is detected
 """
+
+
 def check_for_updates(tray_icon):
     if not ConfigManager.settings["updates"]["check_for_updates"]:
         return
@@ -44,6 +46,7 @@ class CurrentArt:
             self.art_url = self.spotify_art_url
             self.spotify = SpotifyAuth(tray_icon.showMessage)
 
+        self.host_device_name = os.environ["COMPUTERNAME"]
         self.missing_art = Image.open("assets/missing_art.jpg").convert("RGB")
         self.previous_image_url = None
         self.previously_generated_url = None
@@ -51,11 +54,14 @@ class CurrentArt:
     def spotify_art_url(self) -> str:
         try:
             self.spotify.refresh_token()
-            current = self.spotify.api.currently_playing()
-            if current["is_playing"]:
+            current = self.spotify.api.current_playback()
+            if current["is_playing"] and (
+                not ConfigManager.settings["service"]["is_device_specific"]
+                or current["device"]["name"] == self.host_device_name
+            ):
                 return current["item"]["album"]["images"][0]["url"]
-            else:
-                return "default"
+
+            return "default"
         except spotipy.client.SpotifyException:  # Token expired
             self.spotify.refresh_token()
         except:  # local tracks, no devices playing
@@ -84,7 +90,9 @@ class CurrentArt:
     def lastfm_art_url(self):
         try:
             current = self.lastfm_request()["recenttracks"]["track"][0]
-        except KeyError:  # Occurs when last.fm api fails (breifly) or API keys are invalid
+        except (
+            KeyError
+        ):  # Occurs when last.fm api fails (breifly) or API keys are invalid
             return None
         except:
             # occurs with poor/no connection

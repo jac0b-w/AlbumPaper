@@ -22,7 +22,7 @@ class SpotifyAuth:
             client_id,
             client_secret,
             redirect_uri=ConfigManager.settings["service"]["redirect_uri"],
-            scope="user-read-currently-playing",
+            scope="user-read-currently-playing user-read-playback-state",
             cache_path=f".cache-{hashed_keys}",
             show_dialog=True,
         )
