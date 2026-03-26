@@ -1,0 +1,37 @@
+[project]
+name = "albumpaper"
+version = "4.1.0"
+description = "An app for Windows that will change your desktop wallpaper to the album art of the song you are listening to."
+authors = [
+    {name = "jac0b_w"}
+]
+license = {text = "GPL-3.0"}
+readme = "README.md"
+
+requires-python = "==3.9.12"
+
+[tool.poetry.dependencies]
+python = "3.9.12"
+
+pyside2 = ">=5.15.2.1,<6.0.0.0"
+setuptools = ">=80.9.0,<81.0.0"
+pillow = ">=11.3.0,<12.0.0"
+configobj = ">=5.0.9,<6.0.0"
+numpy = "==1.24.2"
+spotipy = ">=2.25.1,<3.0.0"
+scipy = "==1.10.1"
+scikit-learn = "==1.2.2"
+
+[tool.poetry.group.dev.dependencies]
+maturin = ">=1.0,<2.0"
+
+[tool.poetry]
+package-mode = false
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+# "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
+features = ["pyo3/extension-module"]
