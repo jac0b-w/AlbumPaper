@@ -59,12 +59,3 @@ class ConfigManager:
         
         cls.settings.write()
         cls.services.write()
-
-    @classmethod
-    def theme(cls) -> dict:
-        theme_name = cls.settings["theme"]["name"]
-        try:
-            with open(f"themes/{theme_name}.py") as f:
-                return ast.literal_eval(f.read())
-        except FileNotFoundError:
-            return {}

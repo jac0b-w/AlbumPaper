@@ -4,7 +4,9 @@ Classes in this file:
   SettingsWindow
 """
 
-from PySide6 import QtWidgets, QtGui, QtCore
+from PySide6 import QtWidgets, QtGui, QtCore # , QApplication, QDir, ColorScheme
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt
 import os, glob
 
 from config import ConfigManager, ConfigValidationError
@@ -18,13 +20,12 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.context_menu = QtWidgets.QMenu(parent)
         self.signal = signal
         self.VERSION = version
-        self.icon_color = ConfigManager.theme()["icon_color"]
         self.pause_state_manager = pause_state_manager
 
-        try:
-            self.context_menu.setStyleSheet(ConfigManager.theme()["menu"])
-        except KeyError:
-            pass
+        if QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark:
+            self.icon_color = "white"
+        else:
+            self.icon_color = "black"
 
         default_wallpaper_item = self.context_menu.addAction(
             QtGui.QIcon(f"assets/icons/{self.icon_color}/wallpaper.png"),
@@ -142,14 +143,17 @@ class SettingsWindow(QtWidgets.QDialog):
         self.tray_icon = tray_icon
         self.setWindowTitle("Settings")
         self.setFixedSize(470, 0)
-        settings_icon_path = "assets/icons/black/settings.png"
+
+        if QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark:
+            settings_icon_path = "assets/icons/white/settings.png"
+        else:
+            settings_icon_path = "assets/icons/black/settings.png"
+
         if os.path.exists(settings_icon_path):
             self.setWindowIcon(QtGui.QIcon(settings_icon_path))
 
         self.main_layout = QtWidgets.QFormLayout()
         self.init_service_section()
-        self.main_layout.addRow(QtWidgets.QLabel(""))
-        self.init_themes_section()
         self.main_layout.addRow(QtWidgets.QLabel(""))
         self.init_layer_section()
         self.main_layout.addRow(QtWidgets.QLabel(""))
@@ -161,11 +165,6 @@ class SettingsWindow(QtWidgets.QDialog):
         self.save_button.clicked.connect(self.save)
         self.save_button.setDefault(True)
         self.main_layout.addRow("", self.save_button)
-
-        try:
-            self.setStyleSheet(ConfigManager.theme()["settings_window"])
-        except KeyError:
-            pass
 
         self.setLayout(self.main_layout)
 
@@ -293,22 +292,6 @@ class SettingsWindow(QtWidgets.QDialog):
 
         self.background_setEnabled_check()
 
-    def init_themes_section(self):
-        # theme selection
-        self.theme_selector = QtWidgets.QComboBox()
-        themes = [f[9:-3] for f in glob.glob("./themes/*.py")]
-        for theme in themes:
-            self.theme_selector.addItem(theme)
-        self.theme_selector.setCurrentIndex(
-            self.theme_selector.findText(
-                ConfigManager.settings["theme"]["name"], QtCore.Qt.MatchFixedString
-            )
-        )
-        self.main_layout.addRow("Theme", self.theme_selector)
-
-        self.edit_theme_button = QtWidgets.QPushButton("Edit Themes")
-        self.edit_theme_button.clicked.connect(self.edit_themes)
-        self.main_layout.addRow("", self.edit_theme_button)
 
     def init_misc_section(self):
         self.check_updates_checkbox = QtWidgets.QCheckBox()
@@ -353,8 +336,6 @@ class SettingsWindow(QtWidgets.QDialog):
             "blur_strength"
         ] = self.blur_strength.value()
 
-        ConfigManager.settings["theme"]["name"] = self.theme_selector.currentText()
-
         ConfigManager.settings["updates"][
             "check_for_updates"
         ] = self.check_updates_checkbox.isChecked()
@@ -369,13 +350,6 @@ class SettingsWindow(QtWidgets.QDialog):
         else:
             self.accept()
             QtWidgets.QApplication.exit(1)  # send restart exit code
-
-    def edit_themes(self):
-        try:
-            os.startfile("themes")
-        except FileNotFoundError:
-            os.makedirs("themes")
-            os.startfile("themes")
 
     def background_setEnabled_check(self):
         """
