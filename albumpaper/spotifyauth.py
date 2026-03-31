@@ -1,7 +1,7 @@
 import hashlib, threading, spotipy
 from config import ConfigManager, ConfigValidationError
 from typing import Callable
-from PySide2 import QtWidgets
+from PySide6 import QtWidgets
 
 class SpotifyAuth:
     def __init__(self, toast: Callable):

@@ -7,7 +7,6 @@ Classes in this file:
     as the default wallpaper
 """
 
-
 import os, ctypes, glob, shutil, collections, numpy, scipy.cluster, sklearn.cluster, random, functools
 from typing import Optional
 from PIL import Image
@@ -91,12 +90,15 @@ class GenerateWallpaper:
         """
         ar = numpy.asarray(hashable_image.image.resize((150, 150), 0))
         shape = ar.shape
-        ar = ar.reshape(numpy.product(shape[:2]), shape[2]).astype(
+        ar = ar.reshape(numpy.prod(shape[:2]), shape[2]).astype(
             float
         )  # flatten to shape (width*height, 3)
 
         kmeans = sklearn.cluster.MiniBatchKMeans(
-            n_clusters=10, init="k-means++", max_iter=20, random_state=1000
+            n_clusters=10,
+            init="k-means++",
+            max_iter=20,
+            random_state=1000,  # fixed seed for consistent colors
         ).fit(ar)
         codes = kmeans.cluster_centers_
 
@@ -109,6 +111,7 @@ class GenerateWallpaper:
             color_tuple = tuple([int(code) for code in codes[index]])
             colors.append(Color(*color_tuple))
         return colors  # returns colors in order of dominance
+
 
     @staticmethod
     def color_difference(c1, c2):
@@ -195,7 +198,9 @@ class GenerateWallpaper:
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "LinearGradient",
-                structs.Foreground(image, self.foreground_size, self.foreground_enabled),
+                structs.Foreground(
+                    image, self.foreground_size, self.foreground_enabled
+                ),
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
@@ -208,7 +213,9 @@ class GenerateWallpaper:
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "RadialGradient",
-                structs.Foreground(image, self.foreground_size, self.foreground_enabled),
+                structs.Foreground(
+                    image, self.foreground_size, self.foreground_enabled
+                ),
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
@@ -221,7 +228,9 @@ class GenerateWallpaper:
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "SolidColor",
-                structs.Foreground(image, self.foreground_size, self.foreground_enabled),
+                structs.Foreground(
+                    image, self.foreground_size, self.foreground_enabled
+                ),
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
@@ -235,7 +244,9 @@ class GenerateWallpaper:
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "ColoredNoise",
-                structs.Foreground(image, self.foreground_size, self.foreground_enabled),
+                structs.Foreground(
+                    image, self.foreground_size, self.foreground_enabled
+                ),
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
@@ -248,7 +259,9 @@ class GenerateWallpaper:
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "Artwork",
-                structs.Foreground(image, self.foreground_size, self.foreground_enabled),
+                structs.Foreground(
+                    image, self.foreground_size, self.foreground_enabled
+                ),
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
@@ -261,7 +274,9 @@ class GenerateWallpaper:
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "DefaultWallpaper",
-                structs.Foreground(image, self.foreground_size, self.foreground_enabled),
+                structs.Foreground(
+                    image, self.foreground_size, self.foreground_enabled
+                ),
                 self.display_geometry[:2],
                 self.available_geometry,
             ),

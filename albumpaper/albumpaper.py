@@ -1,6 +1,6 @@
 # external imports
-import os, sys, spotipy, requests, logging, logging.handlers, threading, pkg_resources, time
-from PySide2 import QtWidgets, QtGui, QtCore
+import os, sys, spotipy, requests, logging, logging.handlers, threading, time # pkg_resources
+from PySide6 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
 from io import BytesIO
 
@@ -32,10 +32,10 @@ def check_for_updates(tray_icon):
     if any(substring in latest_version for substring in ["alpha", "beta"]):
         return
 
-    if pkg_resources.parse_version(VERSION) < pkg_resources.parse_version(
-        latest_version
-    ):
-        tray_icon.showMessage("New update", f"Update {latest_version} available")
+    # if pkg_resources.parse_version(VERSION) < pkg_resources.parse_version(
+    #     latest_version
+    # ):
+    #     tray_icon.showMessage("New update", f"Update {latest_version} available")
 
 
 class CurrentArt:
@@ -225,7 +225,10 @@ class WorkerThread(QtCore.QThread):
             self.sleep.clear()
             Wallpaper.set(is_default=True)
         else:
-            self.sleep.set()
+            try:
+                self.sleep.set()
+            except Exception:
+                pass
             try:
                 self.get_art.previous_image_url = None
             except AttributeError:
@@ -305,8 +308,6 @@ class OnStartup:
 
     @staticmethod
     def start_QApplication():
-        QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
-        QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
         try:
             app = QtWidgets.QApplication(sys.argv)
         except RuntimeError:  # occurs on restart
@@ -365,7 +366,7 @@ if __name__ in "__main__":
             except ConfigValidationError as e:
                 tray_icon.showMessage(e.message, "")
                 settings_window = SettingsWindow(tray_icon)
-                exit_code = settings_window.exec_()
+                exit_code = settings_window.exec()
             else:
                 battery_saver_check_thread = BatterySaverCheckThread(
                     pause_state_manager
@@ -382,7 +383,7 @@ if __name__ in "__main__":
 
                 pause_state_manager._send_signal()
 
-                exit_code = app.exec_()
+                exit_code = app.exec()
 
                 worker_thread.terminate()
 

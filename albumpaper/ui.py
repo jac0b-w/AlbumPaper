@@ -4,7 +4,7 @@ Classes in this file:
   SettingsWindow
 """
 
-from PySide2 import QtWidgets, QtGui, QtCore
+from PySide6 import QtWidgets, QtGui, QtCore
 import os, glob
 
 from config import ConfigManager, ConfigValidationError
@@ -91,7 +91,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
     def clicked(self, reason):
         # self.Trigger is left click
-        if reason == self.DoubleClick:
+        if reason == self.ActivationReason.DoubleClick:
             self.toggle_pause()
 
     def settings(self):
