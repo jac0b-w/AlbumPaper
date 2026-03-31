@@ -180,6 +180,18 @@ class SettingsWindow(QtWidgets.QDialog):
         index = {"spotify": 0, "last.fm": 1}[ConfigManager.settings["service"]["name"]]
         self.main_layout.addRow("Service", self.service_combo)
 
+        self.service_combo.setCurrentIndex(index)
+
+        def create_help_link(service_name):
+            help_link = QtWidgets.QLabel(
+                f'<a href="https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys#{service_name.replace(".", "")}">'
+                f"Where do I find {service_name} API keys?</a>"
+            )
+            help_link.linkActivated.connect(
+                lambda link: QtGui.QDesktopServices.openUrl(QtCore.QUrl(link))
+            )
+            return help_link
+
         self.api_keys_stacked = QtWidgets.QStackedWidget()
         self.api_keys_stacked.setCurrentIndex(index)
         self.main_layout.addRow(self.api_keys_stacked)
@@ -194,6 +206,13 @@ class SettingsWindow(QtWidgets.QDialog):
         self.spotify_client_secret.setText(
             ConfigManager.services["spotify"]["client_secret"]
         )
+        self.spotify_specific_device_checkbox = QtWidgets.QComboBox()
+        self.spotify_specific_device_checkbox.addItems(
+            ["All Devices", "Only this Device (Spotify Desktop)"]
+        )
+        self.spotify_specific_device_checkbox.setCurrentIndex(
+            int(ConfigManager.settings["service"]["is_device_specific"])
+        )
 
         widget = QtWidgets.QWidget()
         self.api_keys_stacked.addWidget(widget)
@@ -201,6 +220,8 @@ class SettingsWindow(QtWidgets.QDialog):
         widget.setLayout(layout)
         layout.addRow("Client ID", self.spotify_client_id)
         layout.addRow("Client Secret", self.spotify_client_secret)
+        layout.addRow(create_help_link("Spotify"))
+        layout.addRow("Sync from", self.spotify_specific_device_checkbox)
 
         # last.fm section
         self.lastfm_username = QtWidgets.QLineEdit()
@@ -217,16 +238,7 @@ class SettingsWindow(QtWidgets.QDialog):
         widget.setLayout(layout)
         layout.addRow("Username", self.lastfm_username)
         layout.addRow("API Key", self.lastfm_api_key)
-
-        self.service_combo.setCurrentIndex(index)
-        help_link = QtWidgets.QLabel(
-            '<a href="https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys">'
-            "Where do I find API keys?</a>"
-        )
-        help_link.linkActivated.connect(
-            lambda link: QtGui.QDesktopServices.openUrl(QtCore.QUrl(link))
-        )
-        self.main_layout.addRow(help_link)
+        layout.addRow(create_help_link("Last.fm"))
 
     def init_layer_section(self):
         self.foreground_checkbox = QtWidgets.QCheckBox()
@@ -319,6 +331,9 @@ class SettingsWindow(QtWidgets.QDialog):
         ConfigManager.services["spotify"][
             "client_secret"
         ] = self.spotify_client_secret.text()
+        ConfigManager.settings["service"]["is_device_specific"] = bool(
+            self.spotify_specific_device_checkbox.currentIndex()
+        )
 
         ConfigManager.services["last.fm"]["api_key"] = self.lastfm_api_key.text()
         ConfigManager.services["last.fm"]["username"] = self.lastfm_username.text()
