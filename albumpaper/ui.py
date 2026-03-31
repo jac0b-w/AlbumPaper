@@ -4,10 +4,10 @@ Classes in this file:
   SettingsWindow
 """
 
-from PySide6 import QtWidgets, QtGui, QtCore # , QApplication, QDir, ColorScheme
+from PySide6 import QtWidgets, QtGui, QtCore
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
-import os, glob
+import os
 
 from config import ConfigManager, ConfigValidationError
 from wallpaper import Wallpaper
@@ -135,6 +135,60 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
             QtWidgets.QApplication.exit(exit_code)
 
         return exit_function
+
+
+
+class DefaultWallpaperPreview(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.label = QtWidgets.QLabel(self)
+
+        self.update_pixmap()
+        self.setFixedSize(self.pixmap.size())
+        
+        self.overlay = QtWidgets.QWidget(self)
+        self.overlay.setFixedSize(self.pixmap.size())
+        self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 150);")
+        self.overlay.hide()
+
+        # Buttons inside the overlay
+        set_current_btn = QtWidgets.QPushButton("Set to Current")
+
+        color = set_current_btn.palette().color(set_current_btn.backgroundRole())
+
+        set_current_btn.setFixedWidth(100)
+        set_current_btn.setStyleSheet(
+            f"background-color: rgba({color.red()}, {color.green()}, {color.blue()}, 255);"
+        )
+
+        set_current_btn.clicked.connect(self.set_default_wallpaper)
+
+        layout = QtWidgets.QHBoxLayout(self.overlay)
+        layout.setAlignment(Qt.AlignCenter)
+
+        layout.addWidget(set_current_btn)
+
+    def enterEvent(self, event):
+        self.overlay.show()
+
+    def leaveEvent(self, event):
+        self.overlay.hide()
+
+    def showEvent(self, event):
+        self.update_pixmap()
+        super().showEvent(event)
+
+    def update_pixmap(self):
+        w = 320
+        self.pixmap = QtGui.QPixmap("images/default_wallpaper.jpg").scaledToWidth(w, Qt.SmoothTransformation)
+        self.label.setPixmap(self.pixmap)
+
+    def set_default_wallpaper(self):
+        Wallpaper.set_default()
+        self.update_pixmap()
+        
+
 
 
 class SettingsWindow(QtWidgets.QDialog):
@@ -294,6 +348,10 @@ class SettingsWindow(QtWidgets.QDialog):
 
 
     def init_misc_section(self):
+        self.default_wallpaper_widget = DefaultWallpaperPreview(self)
+
+        self.main_layout.addRow("Default Wallpaper", self.default_wallpaper_widget)
+
         self.check_updates_checkbox = QtWidgets.QCheckBox()
         self.main_layout.addRow("Check for updates", self.check_updates_checkbox)
         self.check_updates_checkbox.setChecked(
