@@ -7,15 +7,22 @@ Classes in this file:
     as the default wallpaper
 """
 
-import os, ctypes, glob, shutil, collections, numpy, scipy.cluster, sklearn.cluster, random, functools
-from typing import Optional
-from PIL import Image
-from config import ConfigManager
-from misc import timer, HashableImage
-import structs
+import collections
+import ctypes
+import functools
+import glob
+import os
+import random
+import shutil
 
-# rust functions
-import albumpaper_rs
+import albumpaper_rs  # rust functions
+import numpy
+import scipy.cluster
+import sklearn.cluster
+import structs
+from configuration import ConfigManager
+from misc import HashableImage, timer
+from PIL import Image
 
 DEFAULT_WALLPAPER_PATH = "images/default_wallpaper.jpg"
 GENERATED_WALLPAPER_PATH = "images/generated_wallpaper.png"
@@ -25,13 +32,13 @@ def rust_image(method):
     @functools.wraps(method)  # keeps method name, docstring etc
     def _wrapper(
         self,
-        artwork: Optional[Image.Image],
+        artwork: Image.Image | None,
         *args,
         **kwargs,
     ):
         if artwork is not None:
             artwork_buf = artwork.tobytes("raw")
-            buf_size: tuple = artwork.size
+            buf_size: tuple | None = artwork.size
         else:
             artwork_buf = None
             buf_size = None
@@ -52,17 +59,6 @@ def rust_image(method):
 class GenerateWallpaper:
     def __init__(self, app):
         self.foreground_size = ConfigManager.settings["foreground"]["size"]
-        background_type = ConfigManager.settings["background"]["type"]
-
-        self.gen_background = {
-            "Solid": self.color_background,
-            "Linear Gradient": self.linear_gradient_background,
-            "Radial Gradient": self.radial_gradient_background,
-            "Colored Noise": self.colored_noise_background,
-            "Art": self.art_background,
-            "Wallpaper": self.wallpaper_background,
-            "Random": self.random_background,
-        }[background_type]
 
         self.blur_enabled = ConfigManager.settings["background"]["blur_enabled"]
         self.blur_strength = ConfigManager.settings["background"]["blur_strength"]
@@ -111,7 +107,6 @@ class GenerateWallpaper:
             color_tuple = tuple([int(code) for code in codes[index]])
             colors.append(Color(*color_tuple))
         return colors  # returns colors in order of dominance
-
 
     @staticmethod
     def color_difference(c1, c2):
@@ -192,6 +187,21 @@ class GenerateWallpaper:
         # example return data:
         # (Color(r=120, g=50, b=12), Color(r=190, g=200, b=203))
 
+    def gen_background(self, image: Image.Image):
+        backgrounds = [
+            ("solidcolor", self.color_background),
+            ("lineargradient", self.linear_gradient_background),
+            ("radialgradient", self.radial_gradient_background),
+            ("colorednoise", self.colored_noise_background),
+            ("albumart", self.art_background),
+            ("wallpaper", self.wallpaper_background),
+        ]
+        selected_backgrounds = [
+            bg[1] for bg in backgrounds if ConfigManager.background[bg[0]]["enabled"]
+        ]
+
+        random.choice(selected_backgrounds)(image)
+
     @timer
     def linear_gradient_background(self, image: Image.Image):
         from_color, to_color = self.gradient_colors(image)
@@ -239,23 +249,38 @@ class GenerateWallpaper:
 
     @timer
     def colored_noise_background(self, image: Image.Image):
-        blur: Optional[int] = int(self.blur_strength) if self.blur_enabled else None
+        blur: int | None = (
+            int(self.blur_strength)
+            if ConfigManager.background["colorednoise"]["blur"]
+            else None
+        )
         color1, color2 = self.gradient_colors(image)
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "ColoredNoise",
                 structs.Foreground(
-                    image, self.foreground_size, self.foreground_enabled
+                    image,
+                    self.foreground_size,
+                    self.foreground_enabled,
                 ),
                 self.display_geometry[:2],
                 self.available_geometry,
             ),
-            structs.OptionalArguments(blur, color1, color2),
+            structs.OptionalArguments(
+                blur,
+                color1,
+                color2,
+                ConfigManager.background["colorednoise"]["no_colors"],
+            ),
         )
 
     @timer
     def art_background(self, image: Image.Image):
-        blur: Optional[int] = int(self.blur_strength) if self.blur_enabled else None
+        blur: int | None = (
+            int(self.blur_strength)
+            if ConfigManager.background["albumart"]["blur"]
+            else None
+        )
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "Artwork",
@@ -270,7 +295,11 @@ class GenerateWallpaper:
 
     @timer
     def wallpaper_background(self, image: Image.Image):
-        blur: Optional[int] = int(self.blur_strength) if self.blur_enabled else None
+        blur: int | None = (
+            int(self.blur_strength)
+            if ConfigManager.background["wallpaper"]["blur"]
+            else None
+        )
         albumpaper_rs.generate_save_wallpaper(
             structs.RequiredArguments(
                 "DefaultWallpaper",
@@ -283,7 +312,7 @@ class GenerateWallpaper:
             structs.OptionalArguments(blur, None, None),
         )
 
-    def random_background(self, album_art: Image) -> Image.Image:
+    def random_background(self, album_art: Image) -> None:
         backgound = random.choice(
             [
                 self.color_background,
@@ -317,7 +346,7 @@ class Wallpaper:
 
     @staticmethod
     def set_default():
-        """
+        r"""
         1. First look in %APPDATA%\Microsoft\Windows\Themes\CachedFiles
         and use most recent image (this will have the resolution of the desktop)
         2. If that fails look for %APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper

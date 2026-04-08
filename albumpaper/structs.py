@@ -20,6 +20,7 @@ class RequiredArguments:
 
 @dataclass
 class OptionalArguments:
-    blur_radius: int
-    color1: tuple[int, int, int]
-    color2: tuple[int, int, int]
+    blur_radius: int | None = None
+    color1: tuple[int, int, int] | None = None
+    color2: tuple[int, int, int] | None = None
+    no_colors: int | None = None
