@@ -1,12 +1,12 @@
 # external imports
-import os, sys, spotipy, requests, logging, logging.handlers, threading, time # pkg_resources
+import os, sys, spotipy, requests, logging, logging.handlers, threading, time
 from PySide6 import QtWidgets, QtGui, QtCore
 from PIL import Image, ImageChops
 from io import BytesIO
 
 # In this directory
 from ui import SystemTrayIcon, SettingsWindow
-from config import ConfigManager, ConfigValidationError
+from configuration import ConfigManager, ConfigValidationError
 from wallpaper import Wallpaper, GenerateWallpaper
 from spotifyauth import SpotifyAuth
 import winapi, misc
@@ -116,7 +116,7 @@ class CurrentArt:
         except requests.exceptions.MissingSchema:
             return None
 
-    def get_current_art(self):
+    def get_current_art(self) -> str | Image.Image | None:
         """
         3 possible inputs (from self.art_url):
         url string   | Set wallpaper to this image (if it's not lastfm missing image)
@@ -137,21 +137,22 @@ class CurrentArt:
 
         if image_url in ("default", None):
             return image_url
-        else:  # setting a new non-default wallpaper
-            if (
-                self.previously_generated_url == image_url
-            ):  # wallpaper has already been generated
-                return "generated"
+        # setting a new non-default wallpaper
+        if (
+            self.previously_generated_url == image_url
+        ):  # wallpaper has already been generated
+            return "generated"
 
-            art = self.get_image(image_url)
-            if art is None:  # If image couldn't be downloaded
-                return "default"
-            # if downloaded image is last.fm missing_art image
-            elif ImageChops.difference(art, self.missing_art).getbbox() is None:
-                return "default"
-            else:
-                self.previously_generated_url = image_url
-                return art
+        art = self.get_image(image_url)
+        if (
+            art is None
+            # Or if image couldn't be downloaded (lastfm)
+            or ImageChops.difference(art, self.missing_art).getbbox() is None
+        ):
+            return "default"
+
+        self.previously_generated_url = image_url
+        return art
 
 
 class BatterySaverCheckThread(QtCore.QThread):
@@ -300,14 +301,16 @@ class OnStartup:
             app_log = logging.getLogger("root")
             app_log.setLevel(logging.ERROR)
             app_log.addHandler(handler)
+
+        except Exception:
+            if __debug__:
+                raise
+
+        else:
             return app_log
 
-        except Exception as e:
-            if __debug__:
-                raise e
-
     @staticmethod
-    def start_QApplication():
+    def start_QApplication() -> None:
         try:
             app = QtWidgets.QApplication(sys.argv)
         except RuntimeError:  # occurs on restart
@@ -324,7 +327,6 @@ exit_code = 0, quit app
 """
 
 if __name__ in "__main__":
-
     exit_code = 1
 
     while exit_code == 1:
@@ -347,7 +349,7 @@ if __name__ in "__main__":
             )
 
             try:
-                mutex = winapi.NamedMutex(b"AlbumPaper")
+                mutex = winapi.NamedMutex(b"AlbumPaperDev")
             except winapi.MutexNotAquiredError:
                 tray_icon.showMessage("App already open", "")
                 sys.exit()
