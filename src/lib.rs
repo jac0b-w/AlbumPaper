@@ -52,6 +52,7 @@ pub struct OptionalArgs {
     blur_radius: Option<u32>,
     color1: Option<Color>,
     color2: Option<Color>,
+    no_colors: Option<u16>,
 }
 
 #[pyfunction]
@@ -115,6 +116,7 @@ fn generate_wallpaper(required_args: RequiredArgs, optional_args: OptionalArgs) 
                 required_args.display_geometry,
                 optional_args.color1.unwrap(),
                 optional_args.color2.unwrap(),
+                optional_args.no_colors.unwrap(),
                 seed,
             );
 
