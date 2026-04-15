@@ -1,26 +1,35 @@
 [package]
 name = "albumpaper_rs"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-image = "0.24.5"
+zune-jpeg = "0.5.15"
+zune-core = "0.5.1"
+image = "0.25.10"
 rayon = "1.5.1"
 fastblur = { git = "https://github.com/fschutt/fastblur" }
-ordered-float = { version = "3.0", default-features = false }
+libblur = {version = "0.23.3", features = ["image"]}
+ordered-float = { version = "5.3.0", default-features = false }
 fast_image_resize = "1.0.0"
 rand = "0.9.1"
 
+
 # Colored noise
-colorgrad = "0.7.2"
-noise = "0.8.2"
+colorgrad = "0.8.0"
+noise = "0.9.0"
 
 [lib]
 name = "albumpaper_rs"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies.pyo3]
-version = "0.25.1"
+version = "0.28.3"
 features = ["extension-module"]
+
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = false
