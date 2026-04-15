@@ -40,13 +40,6 @@ If you are running from source you will also need to **(this is not required if 
 
 Any contributions are welcomed. Please ask questions and make suggestions in discussions and create an issue if you've encountered a problem.
 
-## System Usage
-
-Very low CPU and network usage until a new image is generated (song is skipped)
-
-CPU Usage spikes: ~3% Art/Wallpaper background, ~20-25% Gradient/Solid background
-
-Network Usage spikes: <1mbps
 
 ## Examples
 
