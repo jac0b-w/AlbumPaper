@@ -12,3 +12,4 @@ cache/
 *.lock
 *.spec
 *.log*
+/dev
