@@ -43,6 +43,8 @@ def dominant_colors(image: Image.Image) -> list[Color]:
 
 
 mem = joblib.Memory("./cache/dominant_colors", verbose=0)
+
+
 @mem.cache(ignore=["image"])
 def _dominant_colors_cached(image: Image.Image, _image_hash: int) -> list[Color]:
     """
@@ -67,6 +69,6 @@ def _dominant_colors_cached(image: Image.Image, _image_hash: int) -> list[Color]
     vecs, _dist = scipy.cluster.vq.vq(ar, codes)  # assign codes
     counts, _bins = np.histogram(vecs, len(codes))  # count occurrences
 
-    mem.reduce_size(bytes_limit=f"{int(ConfigManager.settings["cache"]["size"])/2}M")
+    mem.reduce_size(bytes_limit=f"{int(ConfigManager.settings['cache']['size']) / 2}M")
 
     return [tuple(row) for row in codes[np.argsort(counts)[::-1]].astype(int)]

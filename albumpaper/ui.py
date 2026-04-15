@@ -322,7 +322,8 @@ class DefaultWallpaperPreview(QtWidgets.QWidget):
     def update_pixmap(self) -> None:
         w = 320
         self.pixmap = QtGui.QPixmap(AppPaths.DEFAULT_WALLPAPER).scaledToWidth(
-            w, Qt.SmoothTransformation,
+            w,
+            Qt.SmoothTransformation,
         )
         self.label.setPixmap(self.pixmap)
 

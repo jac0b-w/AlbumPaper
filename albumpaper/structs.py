@@ -6,11 +6,11 @@ if TYPE_CHECKING:
     from PIL import Image
 
 
-
 class ImageBuffer:
     def __init__(self, image: Image.Image) -> None:
         self.size = image.size
         self.buffer = image.tobytes()
+
 
 @dataclass(kw_only=True)
 class GenerationConfig:
@@ -20,12 +20,14 @@ class GenerationConfig:
     display_geometry: tuple[int, int]
     available_geometry: tuple[int, int, int, int]
 
+
 @dataclass(kw_only=True)
 class ForegroundConfig:
     show_artwork: bool
     artwork_resize: int | None
     drop_shadow: bool
     spotify_code: ImageBuffer | None
+
 
 @dataclass(kw_only=True)
 class BackgroundConfig:
