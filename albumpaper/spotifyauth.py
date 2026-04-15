@@ -1,29 +1,37 @@
-import hashlib, threading, spotipy
-from configuration import ConfigManager, ConfigValidationError
-from collections.abc import Callable
+import contextlib
+import threading
+from typing import TYPE_CHECKING
+
+import spotipy
+import xxhash
+from configuration import ConfigManager
 from PySide6 import QtWidgets
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+
 class SpotifyAuth:
-    def __init__(self, toast: Callable):
+    def __init__(self, toast: Callable) -> None:
         self.toast = toast
         self.authorize()
 
-    def authorize(self):
+    def authorize(self) -> None:
         client_id = ConfigManager.services["spotify"]["client_id"]
         client_secret = ConfigManager.services["spotify"]["client_secret"]
 
         # Easier than deleting the .cache each time keys change and means
         # no relogin after switching to previous keys
-        hasher = hashlib.shake_128()
-        hasher.update((client_id + client_secret).encode("UTF-8"))
-        hashed_keys = hasher.hexdigest(3)
+        hashed_keys = xxhash.xxh32(
+            (client_id + client_secret).encode("UTF-8"),
+        ).hexdigest()
 
         self.sp_oauth = spotipy.SpotifyOAuth(
             client_id,
             client_secret,
             redirect_uri=ConfigManager.settings["service"]["redirect_uri"],
             scope="user-read-currently-playing user-read-playback-state",
-            cache_path=f".cache-{hashed_keys}",
+            cache_path=f"./cache/.spotipy-cache-{hashed_keys}",
             show_dialog=True,
         )
 
@@ -33,26 +41,23 @@ class SpotifyAuth:
         except spotipy.oauth2.SpotifyOauthError as e:
             self.toast("Authentication Error", e.error_description)
             ConfigManager.services["spotify"]["client_secret"] = ""
-            try:
-                ConfigManager.save()
-            except ConfigValidationError as e:
-                self.toast("Set valid Spotify client secret", "")
+            ConfigManager.save_internal_state()
+            ConfigManager.save_widget_state()
+
             threading.Event().wait(3)
-            QtWidgets.QApplication.exit(0)
+            QtWidgets.QApplication.exit(1)
 
-        try:
+        with contextlib.suppress(BaseException):
             self.api = spotipy.Spotify(auth=token)
-        except Exception as e:
-            raise e
 
-    def refresh_token(self):
+    def refresh_token(self) -> None:
         try:
             if self.sp_oauth.is_token_expired(token_info=self.token_info):
                 self.token_info = self.sp_oauth.refresh_access_token(
-                    self.token_info["refresh_token"]
+                    self.token_info["refresh_token"],
                 )
                 token = self.token_info["access_token"]
                 self.api = spotipy.Spotify(auth=token)
                 print("TOKEN REFRESHED")
-        except:
+        except:  # noqa: E722
             print("FAILED TO REFRESH TOKEN")

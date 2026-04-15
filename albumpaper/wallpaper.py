@@ -1,124 +1,77 @@
-"""
-Classes in this file:
-  GenerateWallpaper
-   - For generating the wallpaper based on the users settings
-  Wallpaper
-   - For setting a new wallpaper and saving the current wallpaper
-    as the default wallpaper
-"""
-
-import collections
 import ctypes
-import functools
+import enum
 import glob
 import os
 import random
 import shutil
+from typing import TYPE_CHECKING
 
-import albumpaper_rs  # rust functions
-import numpy
-import scipy.cluster
-import sklearn.cluster
+import albumpaper_rs
+import imagegen
 import structs
-from configuration import ConfigManager
-from misc import HashableImage, timer
+from configuration import (
+    AppPaths,
+    ConfigManager,
+)
+from misc import Color, timer
 from PIL import Image
 
-DEFAULT_WALLPAPER_PATH = "images/default_wallpaper.jpg"
-GENERATED_WALLPAPER_PATH = "images/generated_wallpaper.png"
+if TYPE_CHECKING:
+    from PySide6 import QtWidgets
+
+    from albumpaper import LastfmTrack, SpotifyTrack
+
+    type Track = SpotifyTrack | LastfmTrack
+
+from misc import GenerateNew, SetDefault, SetPrevious, Unchanged, WallpaperAction
 
 
-def rust_image(method):
-    @functools.wraps(method)  # keeps method name, docstring etc
-    def _wrapper(
-        self,
-        artwork: Image.Image | None,
-        *args,
-        **kwargs,
-    ):
-        if artwork is not None:
-            artwork_buf = artwork.tobytes("raw")
-            buf_size: tuple | None = artwork.size
-        else:
-            artwork_buf = None
-            buf_size = None
-
-        method(
-            artwork_buf,
-            buf_size,
-            self.foreground_size if self.foreground_enabled else None,
-            self.display_geometry[:2],
-            self.available_geometry,
-            *args,
-            **kwargs,
-        )
-
-    return _wrapper
+class BackgroundType(enum.StrEnum):
+    SOLID_COLOR = "solidcolor"
+    LINEAR_GRADIENT = "lineargradient"
+    RADIAL_GRADIENT = "radialgradient"
+    COLORED_NOISE = "colorednoise"
+    ALBUM_ART = "albumart"
+    DEFAULT_WALLPAPER = "defaultwallpaper"
 
 
 class GenerateWallpaper:
-    def __init__(self, app):
-        self.foreground_size = ConfigManager.settings["foreground"]["size"]
+    def __init__(self, app: QtWidgets.QApplication) -> None:
+        self.artwork_resize = ConfigManager.settings["foreground"]["size"]
 
         self.blur_enabled = ConfigManager.settings["background"]["blur_enabled"]
         self.blur_strength = ConfigManager.settings["background"]["blur_strength"]
 
         self.foreground_enabled = ConfigManager.settings["foreground"]["enabled"]
+        self.spotify_code = ConfigManager.settings["foreground"]["spotify_code"]
 
-        Geometry = collections.namedtuple("Geometry", ["w", "h", "left", "top"])
         dw = app.primaryScreen()
-        self.display_geometry = Geometry(dw.size().width(), dw.size().height(), 0, 0)
-        self.available_geometry = Geometry(
+        self.display_geometry = (
+            dw.size().width(),
+            dw.size().height(),
+            0,
+            0,
+        )
+        self.available_geometry = (
             dw.availableGeometry().width(),
             dw.availableGeometry().height(),
             dw.availableGeometry().left(),
             dw.availableGeometry().top(),
         )
 
-        self.dominant_colors = functools.lru_cache(10)(self.dominant_colors)
-
-    @timer
-    def dominant_colors(self, hashable_image: HashableImage):
-        """
-        Input: PIL image
-        Output: A list of 10 colors in the image from most dominant to least dominant
-        Adaptation of https://stackoverflow.com/a/3244061/7274182
-        """
-        ar = numpy.asarray(hashable_image.image.resize((150, 150), 0))
-        shape = ar.shape
-        ar = ar.reshape(numpy.prod(shape[:2]), shape[2]).astype(
-            float
-        )  # flatten to shape (width*height, 3)
-
-        kmeans = sklearn.cluster.MiniBatchKMeans(
-            n_clusters=10,
-            init="k-means++",
-            max_iter=20,
-            random_state=1000,  # fixed seed for consistent colors
-        ).fit(ar)
-        codes = kmeans.cluster_centers_
-
-        vecs, _dist = scipy.cluster.vq.vq(ar, codes)  # assign codes
-        counts, _bins = numpy.histogram(vecs, len(codes))  # count occurrences
-
-        Color = collections.namedtuple("Color", ["r", "g", "b"])
-        colors = []
-        for index in numpy.argsort(counts)[::-1]:
-            color_tuple = tuple([int(code) for code in codes[index]])
-            colors.append(Color(*color_tuple))
-        return colors  # returns colors in order of dominance
+        self.drop_shadow = ConfigManager.settings["foreground"]["drop_shadow"]
 
     @staticmethod
-    def color_difference(c1, c2):
+    def color_difference(c1: Color, c2: Color) -> float:
         """
         Input: RGB named tuples
         Output: An aproximation of perceived color difference of two colors
         https://www.compuphase.com/cmetric.htm
         """
-        r = (c1.r + c2.r) / 2
-        delta_r = c1.r - c2.r
-        delta_g = c1.g - c2.g
-        delta_b = c1.b - c2.b
+        r = (c1[0] + c2[0]) / 2
+        delta_r = c1[0] - c2[0]
+        delta_g = c1[1] - c2[1]
+        delta_b = c1[2] - c2[2]
         return (
             (2 + r / 256) * delta_r**2
             + 4 * delta_g**2
@@ -126,14 +79,15 @@ class GenerateWallpaper:
         ) ** 0.5
 
     @staticmethod
-    def color_luminosity(color):
+    def color_luminosity(color: Color) -> float:
         min_rgb = min(color) / 255
         max_rgb = max(color) / 255
         return (max_rgb + min_rgb) / 2
 
     def color_saturation(
-        self, color
-    ):  # https://medium.com/@donatbalipapp/colours-maths-90346fb5abda
+        self,
+        color: Color,
+    ) -> int:  # https://medium.com/@donatbalipapp/colours-maths-90346fb5abda
         """
         Input: RGB named tuple
         Output: Saturation of the color 0-1
@@ -143,28 +97,33 @@ class GenerateWallpaper:
         luminosity = self.color_luminosity(color)
         if luminosity == 1:
             return 0
-        else:
-            try:
-                return (max_rgb - min_rgb) / (1 - abs(2 * luminosity - 1))
-            except ZeroDivisionError:
-                return 1
+
+        denom = 1 - abs(2 * luminosity - 1)
+        if denom == 0:
+            return 0
+
+        return (max_rgb - min_rgb) / (1 - abs(2 * luminosity - 1))
 
     def gradient_colors(
-        self, image: Image.Image
-    ):  # https://stackoverflow.com/questions/30608035/plot-circular-gradients-using-pil-in-python
+        self,
+        image: Image.Image,
+    ) -> tuple[Color, Color]:
         """
         Determine best colours for the gradient
         Firstly get the 7 most dominant colours and pick the most saturated
-        Pair the most saturated colour with the colour that has the largest perceived difference
+        Pair the most saturated colour with the colour that has the largest
+        perceived difference.
         """
-        dominant_colors = self.dominant_colors(HashableImage(image))
+        dominant_colors = imagegen.dominant_colors(image)
 
         saturations = [
             {"color": color, "saturation": self.color_saturation(color)}
             for color in dominant_colors[:7]
         ]
         sorted_saturations = sorted(
-            saturations, key=lambda x: x["saturation"], reverse=True
+            saturations,
+            key=lambda x: x["saturation"],
+            reverse=True,
         )
         # e.g. [{"color":(255,0,0),"saturation":0.75},{"color":(255,255,255),"saturation":0} ...]
         most_saturated = sorted_saturations[0]["color"]
@@ -173,205 +132,290 @@ class GenerateWallpaper:
             {
                 "color pair": (most_saturated, saturation_dict["color"]),
                 "difference": self.color_difference(
-                    most_saturated, saturation_dict["color"]
+                    most_saturated,
+                    saturation_dict["color"],
                 ),
             }
             for saturation_dict in sorted_saturations[1:]
         ]
         sorted_color_differences = sorted(
-            color_differences, key=lambda x: x["difference"], reverse=True
+            color_differences,
+            key=lambda x: x["difference"],
+            reverse=True,
         )
 
         return sorted_color_differences[0]["color pair"]
 
-        # example return data:
-        # (Color(r=120, g=50, b=12), Color(r=190, g=200, b=203))
-
-    def gen_background(self, image: Image.Image):
+    def gen_background(self, track: Track) -> None:
         backgrounds = [
-            ("solidcolor", self.color_background),
-            ("lineargradient", self.linear_gradient_background),
-            ("radialgradient", self.radial_gradient_background),
-            ("colorednoise", self.colored_noise_background),
-            ("albumart", self.art_background),
-            ("wallpaper", self.wallpaper_background),
+            (BackgroundType.SOLID_COLOR, self.solidcolor_background),
+            (BackgroundType.LINEAR_GRADIENT, self.lineargradient_background),
+            (BackgroundType.RADIAL_GRADIENT, self.radialgradient_background),
+            (BackgroundType.COLORED_NOISE, self.colorednoise_background),
+            (BackgroundType.ALBUM_ART, self.albumart_background),
+            (BackgroundType.DEFAULT_WALLPAPER, self.defaultwallpaper_background),
         ]
         selected_backgrounds = [
             bg[1] for bg in backgrounds if ConfigManager.background[bg[0]]["enabled"]
         ]
 
-        random.choice(selected_backgrounds)(image)
+        random.choice(selected_backgrounds)(track)
 
     @timer
-    def linear_gradient_background(self, image: Image.Image):
+    def solidcolor_background(self, track: Track) -> None:
+        image = track.artwork
+
+        if self.spotify_code and track.spotify_code_image is not None:
+            spotify_code = structs.ImageBuffer(track.spotify_code_image)
+
+        else:
+            spotify_code = None
+
+        color = imagegen.dominant_colors(image)[0]
+        albumpaper_rs.generate_save_wallpaper(
+            structs.GenerationConfig(
+                artwork=structs.ImageBuffer(image),
+                background=structs.BackgroundConfig(
+                    background_type=BackgroundType.SOLID_COLOR,
+                    color1=color,
+                ),
+                foreground=structs.ForegroundConfig(
+                    show_artwork=self.foreground_enabled,
+                    artwork_resize=self.artwork_resize,
+                    drop_shadow=self.drop_shadow,
+                    spotify_code=spotify_code,
+                ),
+                display_geometry=self.display_geometry[:2],
+                available_geometry=self.available_geometry,
+            ),
+        )
+
+    @timer
+    def lineargradient_background(self, track: Track) -> None:
+        image = track.artwork
+
+        if self.spotify_code and track.spotify_code_image is not None:
+            spotify_code = structs.ImageBuffer(track.spotify_code_image)
+
+        else:
+            spotify_code = None
+
         from_color, to_color = self.gradient_colors(image)
+
         albumpaper_rs.generate_save_wallpaper(
-            structs.RequiredArguments(
-                "LinearGradient",
-                structs.Foreground(
-                    image, self.foreground_size, self.foreground_enabled
+            structs.GenerationConfig(
+                artwork=structs.ImageBuffer(image),
+                background=structs.BackgroundConfig(
+                    background_type=BackgroundType.LINEAR_GRADIENT,
+                    color1=from_color,
+                    color2=to_color,
                 ),
-                self.display_geometry[:2],
-                self.available_geometry,
+                foreground=structs.ForegroundConfig(
+                    show_artwork=self.foreground_enabled,
+                    artwork_resize=self.artwork_resize,
+                    drop_shadow=self.drop_shadow,
+                    spotify_code=spotify_code,
+                ),
+                display_geometry=self.display_geometry[:2],
+                available_geometry=self.available_geometry,
             ),
-            structs.OptionalArguments(None, from_color, to_color),
         )
 
     @timer
-    def radial_gradient_background(self, image: Image.Image):
+    def radialgradient_background(self, track: Track) -> None:
+        image = track.artwork
+
+        if self.spotify_code and track.spotify_code_image is not None:
+            spotify_code = structs.ImageBuffer(track.spotify_code_image)
+
+        else:
+            spotify_code = None
+
         from_color, to_color = self.gradient_colors(image)
+
         albumpaper_rs.generate_save_wallpaper(
-            structs.RequiredArguments(
-                "RadialGradient",
-                structs.Foreground(
-                    image, self.foreground_size, self.foreground_enabled
+            structs.GenerationConfig(
+                artwork=structs.ImageBuffer(image),
+                background=structs.BackgroundConfig(
+                    background_type=BackgroundType.RADIAL_GRADIENT,
+                    color1=from_color,
+                    color2=to_color,
                 ),
-                self.display_geometry[:2],
-                self.available_geometry,
+                foreground=structs.ForegroundConfig(
+                    show_artwork=self.foreground_enabled,
+                    artwork_resize=self.artwork_resize,
+                    drop_shadow=self.drop_shadow,
+                    spotify_code=spotify_code,
+                ),
+                display_geometry=self.display_geometry[:2],
+                available_geometry=self.available_geometry,
             ),
-            structs.OptionalArguments(None, from_color, to_color),
         )
 
     @timer
-    def color_background(self, image: Image.Image):
-        color = self.dominant_colors(HashableImage(image))[0]
-        albumpaper_rs.generate_save_wallpaper(
-            structs.RequiredArguments(
-                "SolidColor",
-                structs.Foreground(
-                    image, self.foreground_size, self.foreground_enabled
-                ),
-                self.display_geometry[:2],
-                self.available_geometry,
-            ),
-            structs.OptionalArguments(None, color, None),
-        )
+    def colorednoise_background(self, track: Track) -> None:
+        image = track.artwork
 
-    @timer
-    def colored_noise_background(self, image: Image.Image):
+        if self.spotify_code and track.spotify_code_image is not None:
+            spotify_code = structs.ImageBuffer(track.spotify_code_image)
+
+        else:
+            spotify_code = None
+
         blur: int | None = (
             int(self.blur_strength)
-            if ConfigManager.background["colorednoise"]["blur"]
+            if ConfigManager.background[BackgroundType.COLORED_NOISE]["blur"]
             else None
         )
+        no_colors = ConfigManager.background[BackgroundType.COLORED_NOISE]["no_colors"]
         color1, color2 = self.gradient_colors(image)
         albumpaper_rs.generate_save_wallpaper(
-            structs.RequiredArguments(
-                "ColoredNoise",
-                structs.Foreground(
-                    image,
-                    self.foreground_size,
-                    self.foreground_enabled,
+            structs.GenerationConfig(
+                artwork=structs.ImageBuffer(image),
+                background=structs.BackgroundConfig(
+                    background_type=BackgroundType.RADIAL_GRADIENT,
+                    blur_radius=blur,
+                    color1=color1,
+                    color2=color2,
+                    no_colors=no_colors,
                 ),
-                self.display_geometry[:2],
-                self.available_geometry,
-            ),
-            structs.OptionalArguments(
-                blur,
-                color1,
-                color2,
-                ConfigManager.background["colorednoise"]["no_colors"],
+                foreground=structs.ForegroundConfig(
+                    show_artwork=self.foreground_enabled,
+                    artwork_resize=self.artwork_resize,
+                    drop_shadow=self.drop_shadow,
+                    spotify_code=spotify_code,
+                ),
+                display_geometry=self.display_geometry[:2],
+                available_geometry=self.available_geometry,
             ),
         )
 
     @timer
-    def art_background(self, image: Image.Image):
+    def albumart_background(self, track: Track) -> None:
+        image = track.artwork
+
+        if self.spotify_code and track.spotify_code_image is not None:
+            spotify_code = structs.ImageBuffer(track.spotify_code_image)
+
+        else:
+            spotify_code = None
+
         blur: int | None = (
             int(self.blur_strength)
-            if ConfigManager.background["albumart"]["blur"]
+            if ConfigManager.background[BackgroundType.ALBUM_ART]["blur"]
             else None
         )
         albumpaper_rs.generate_save_wallpaper(
-            structs.RequiredArguments(
-                "Artwork",
-                structs.Foreground(
-                    image, self.foreground_size, self.foreground_enabled
+            structs.GenerationConfig(
+                artwork=structs.ImageBuffer(image),
+                background=structs.BackgroundConfig(
+                    background_type=BackgroundType.ALBUM_ART,
+                    blur_radius=blur,
                 ),
-                self.display_geometry[:2],
-                self.available_geometry,
+                foreground=structs.ForegroundConfig(
+                    show_artwork=self.foreground_enabled,
+                    artwork_resize=self.artwork_resize,
+                    drop_shadow=self.drop_shadow,
+                    spotify_code=spotify_code,
+                ),
+                display_geometry=self.display_geometry[:2],
+                available_geometry=self.available_geometry,
             ),
-            structs.OptionalArguments(blur, None, None),
         )
 
     @timer
-    def wallpaper_background(self, image: Image.Image):
+    def defaultwallpaper_background(self, track: Track) -> None:
+        image = track.artwork
+
+        if self.spotify_code and track.spotify_code_image is not None:
+            spotify_code = structs.ImageBuffer(track.spotify_code_image)
+
+        else:
+            spotify_code = None
+
         blur: int | None = (
             int(self.blur_strength)
-            if ConfigManager.background["wallpaper"]["blur"]
+            if ConfigManager.background[BackgroundType.DEFAULT_WALLPAPER]["blur"]
             else None
         )
         albumpaper_rs.generate_save_wallpaper(
-            structs.RequiredArguments(
-                "DefaultWallpaper",
-                structs.Foreground(
-                    image, self.foreground_size, self.foreground_enabled
+            structs.GenerationConfig(
+                artwork=structs.ImageBuffer(image),
+                background=structs.BackgroundConfig(
+                    background_type=BackgroundType.DEFAULT_WALLPAPER,
+                    blur_radius=blur,
                 ),
-                self.display_geometry[:2],
-                self.available_geometry,
+                foreground=structs.ForegroundConfig(
+                    show_artwork=self.foreground_enabled,
+                    artwork_resize=self.artwork_resize,
+                    drop_shadow=self.drop_shadow,
+                    spotify_code=spotify_code,
+                ),
+                display_geometry=self.display_geometry[:2],
+                available_geometry=self.available_geometry,
             ),
-            structs.OptionalArguments(blur, None, None),
         )
 
-    def random_background(self, album_art: Image) -> None:
-        backgound = random.choice(
-            [
-                self.color_background,
-                self.linear_gradient_background,
-                self.radial_gradient_background,
-                self.colored_noise_background,
-                self.art_background,
-            ]
-        )
-        backgound(album_art)
-
-    def generate(self, image: Image.Image):
-        if isinstance(image, Image.Image):
-            print("========== Generating new image ==========")
-            self.gen_background(image)
-
-            Wallpaper.set(is_default=False)
-        elif image == "default":
-            Wallpaper.set(is_default=True)
-        elif image == "generated":
-            Wallpaper.set(is_default=False)
+    def generate(self, wallaper_action: WallpaperAction) -> None:
+        match wallaper_action:
+            case GenerateNew(track):
+                print("========== Generating new image ==========")
+                self.gen_background(track)
+                WindowsWallpaper.set_generated_wallpaper()
+            case SetPrevious():
+                WindowsWallpaper.set_generated_wallpaper()
+            case SetDefault():
+                WindowsWallpaper.set_default_wallpaper()
+            case Unchanged():
+                return
 
 
-class Wallpaper:
+class WindowsWallpaper:
     @staticmethod
-    def set(is_default: bool):
-        file_name = DEFAULT_WALLPAPER_PATH if is_default else GENERATED_WALLPAPER_PATH
-        abs_path = os.path.abspath(file_name)
+    def _set(*, is_default: bool) -> None:
+        file_name = (
+            AppPaths.DEFAULT_WALLPAPER if is_default else AppPaths.GENERATED_WALLPAPER
+        )
+        abs_path = os.path.abspath(file_name)  # noqa: PTH100
         ctypes.windll.user32.SystemParametersInfoW(20, 0, abs_path, 0)
         print("WALLPAPER SET: " + ("Default" if is_default else "Generated"))
 
     @staticmethod
-    def set_default():
+    def set_default_wallpaper() -> None:
+        WindowsWallpaper._set(is_default=True)
+
+    @staticmethod
+    def set_generated_wallpaper() -> None:
+        WindowsWallpaper._set(is_default=False)
+
+    @staticmethod
+    def cache_current() -> None:
         r"""
         1. First look in %APPDATA%\Microsoft\Windows\Themes\CachedFiles
         and use most recent image (this will have the resolution of the desktop)
         2. If that fails look for %APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper
         (this will have the resolution of the original image)
-        3. If that fails find the original path of the wallpaper and save that image instead
-        # https://stackoverflow.com/questions/44867820/
+        3. If that fails find the original path of the wallpaper and save that
+        image instead https://stackoverflow.com/questions/44867820/
         4. Finally if all fail just save use a blank image as the dafault wallpaper
         """
         cached_folder = os.path.expandvars(
-            r"%APPDATA%\Microsoft\Windows\Themes\CachedFiles\*"
+            r"%APPDATA%\Microsoft\Windows\Themes\CachedFiles\*",
         )
-        list_of_files = glob.glob(cached_folder)
+        list_of_files = glob.glob(cached_folder)  # noqa: PTH207
         if list_of_files:
             current_wallpaper = max(list_of_files, key=os.path.getctime)
         else:
             current_wallpaper = os.path.expandvars(
-                r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper"
+                r"%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper",
             )
         try:
-            shutil.copy(current_wallpaper, DEFAULT_WALLPAPER_PATH)
+            shutil.copy(current_wallpaper, AppPaths.DEFAULT_WALLPAPER)
         except FileNotFoundError:
             ubuf = ctypes.create_unicode_buffer(200)
             ctypes.windll.user32.SystemParametersInfoW(0x0073, 200, ubuf, 0)
             try:
-                shutil.copy(ubuf.value, DEFAULT_WALLPAPER_PATH)
+                shutil.copy(ubuf.value, AppPaths.DEFAULT_WALLPAPER)
             except FileNotFoundError:
                 image = Image.new("RGB", (1, 1))
-                image.save(DEFAULT_WALLPAPER_PATH, "JPEG", quality=100)
+                image.save(AppPaths.DEFAULT_WALLPAPER, "JPEG", quality=100)

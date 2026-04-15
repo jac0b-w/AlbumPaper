@@ -1,73 +1,63 @@
-# external imports
-import os, sys, spotipy, requests, logging, logging.handlers, threading, time
-from PySide6 import QtWidgets, QtGui, QtCore
-from PIL import Image, ImageChops
-from io import BytesIO
+import contextlib
+import ctypes
+import functools
+import logging
+import logging.handlers
+import os
+import sys
+import threading
+import time
+from pathlib import Path
 
-# In this directory
-from ui import SystemTrayIcon, SettingsWindow
-from configuration import ConfigManager, ConfigValidationError
-from wallpaper import Wallpaper, GenerateWallpaper
+import imagegen
+import misc
+import requests
+import spotipy
+import winapi
+import xxhash
+from configuration import AppPaths, ConfigManager
+from misc import GenerateNew, SetDefault, SetPrevious, Unchanged, WallpaperAction
+from PIL import Image
+from PySide6 import QtCore, QtGui, QtWidgets
 from spotifyauth import SpotifyAuth
-import winapi, misc
-
-VERSION = "v4.1.0"  # as tagged on github
-
-"""
-Displays a toast message if a new release is detected
-"""
-
-
-def check_for_updates(tray_icon):
-    if not ConfigManager.settings["updates"]["check_for_updates"]:
-        return
-
-    try:
-        response = requests.get(
-            "https://api.github.com/repos/jac0b-w/AlbumPaper/releases/latest",
-        )
-        latest_version: str = response.json()["tag_name"]
-    except Exception:
-        return
-    if any(substring in latest_version for substring in ["alpha", "beta"]):
-        return
-
-    # if pkg_resources.parse_version(VERSION) < pkg_resources.parse_version(
-    #     latest_version
-    # ):
-    #     tray_icon.showMessage("New update", f"Update {latest_version} available")
+from ui import SystemTrayIcon
+from wallpaper import GenerateWallpaper, WindowsWallpaper
 
 
 class CurrentArt:
-    def __init__(self, service: str):
-        if service == "last.fm":  # using lastfm
-            self.art_url = self.lastfm_art_url
+    def __init__(self, service: int) -> None:
+        if service == 1:  # using lastfm
+            self.current_track = self.lastfm_track
         else:
-            self.art_url = self.spotify_art_url
+            self.current_track = self.spotify_track
             self.spotify = SpotifyAuth(tray_icon.showMessage)
 
         self.host_device_name = os.environ["COMPUTERNAME"]
-        self.missing_art = Image.open("assets/missing_art.jpg").convert("RGB")
-        self.previous_image_url = None
-        self.previously_generated_url = None
 
-    def spotify_art_url(self) -> str:
+        self.previous_playback_state = None
+        self.previously_generated_track = None
+
+    def spotify_track(self) -> GenerateNew | SetDefault | None:
         try:
             self.spotify.refresh_token()
             current = self.spotify.api.current_playback()
+
             if current["is_playing"] and (
                 not ConfigManager.settings["service"]["is_device_specific"]
                 or current["device"]["name"] == self.host_device_name
             ):
-                return current["item"]["album"]["images"][0]["url"]
+                return GenerateNew(SpotifyTrack(current))
 
-            return "default"
         except spotipy.client.SpotifyException:  # Token expired
             self.spotify.refresh_token()
-        except:  # local tracks, no devices playing
-            return "default"
+        except:  # local tracks, no devices playing  # noqa: E722
+            return SetDefault()
+        else:  # is_playing is false or not playing on current device
+            return SetDefault()
 
-    def lastfm_request(self):
+        return Unchanged()
+
+    def lastfm_request(self) -> dict | None:
         try:
             # define headers and URL
             headers = {"user-agent": "AlbumPaper"}
@@ -81,87 +71,171 @@ class CurrentArt:
                 "format": "json",
             }
 
-            response = requests.get(url, headers=headers, params=payload)
+            response = requests.get(url, headers=headers, params=payload)  # noqa: S113
             return response.json()
-        except:
-            print("[ERROR] Last.fm request error")
+        except:  # noqa: E722
+            print("[ERROR] Last.fm request error, setting to default wallpaper")
             return None
 
-    def lastfm_art_url(self):
+    def lastfm_track(self) -> Unchanged | SetDefault | GenerateNew:
         try:
-            current = self.lastfm_request()["recenttracks"]["track"][0]
+            lastfm_response = self.lastfm_request()
+            current = lastfm_response["recenttracks"]["track"][0]
         except (
             KeyError
         ):  # Occurs when last.fm api fails (breifly) or API keys are invalid
-            return None
-        except:
+            return Unchanged()
+        except:  # noqa: E722
             # occurs with poor/no connection
-            return "default"
+            return SetDefault()
+
         try:
             if current["@attr"]["nowplaying"].lower() == "true":
-                return current["image"][0]["#text"].replace(
-                    "/i/u/34s/", "/i/u/600x600/"
-                )  # find 600px version
-            else:  # when track is not playing
-                return "default"
-        except:  # occurs when the user isn't playing a track
-            return "default"
+                return GenerateNew(LastfmTrack(lastfm_response))
 
-    @staticmethod
-    @misc.timer
-    def get_image(url: str) -> Image.Image:
-        try:
-            response_content = misc.download_image(url)
-            return Image.open(BytesIO(response_content)).convert("RGB")
-        except requests.exceptions.MissingSchema:
-            return None
+            # when track is not playing
+            return SetDefault()
+        except:  # occurs when the user isn't playing a track  # noqa: E722
+            return SetDefault()
 
-    def get_current_art(self) -> str | Image.Image | None:
-        """
-        3 possible inputs (from self.art_url):
-        url string   | Set wallpaper to this image (if it's not lastfm missing image)
-        "default"    | Set default wallpaper
-        None         | Do not change wallpaper
+        return Unchanged()
 
-        4 Possible outputs
-        Image.Image  | Generate and set wallpaper to this image
-        "default"    | Set default wallpaper
-        "generated"  | Set wallpaper to last generated wallpaper
-        None         | Do not change wallpaper
-        """
-        image_url = self.art_url()
-        if image_url == self.previous_image_url:  # Image hasn't changed
-            return None
+    def current_wallpaper_action(self) -> WallpaperAction:
+        wallpaper_action: GenerateNew | SetDefault | Unchanged = self.current_track()
 
-        self.previous_image_url = image_url
+        if wallpaper_action == self.previous_playback_state:
+            return Unchanged()
 
-        if image_url in ("default", None):
-            return image_url
-        # setting a new non-default wallpaper
+        self.previous_playback_state = wallpaper_action
+
+        match wallpaper_action:
+            case SetDefault():
+                return SetDefault()
+            case Unchanged():
+                return Unchanged()
+
+        track: Track = wallpaper_action.track
+
+        if track == self.previously_generated_track:
+            return SetPrevious()
+
+        artwork = track.artwork
+        if artwork is None:
+            return SetDefault()
+
+        self.previously_generated_track = track
+
+        wallpaper_action: GenerateNew
+
+        return wallpaper_action
+
+
+class Track:
+    @property  # image cached via misc.download_image
+    def artwork(self) -> Image.Image | None:
+        return misc.download_image(self.image_url)
+
+    @property
+    def dominant_colors(self) -> list[misc.Color]:
+        return imagegen.dominant_colors(self.artwork)
+
+
+class LastfmTrack(Track):  # noqa: PLW1641
+    def __init__(self, response: dict) -> None:
+        recent_track = response["recenttracks"]["track"][0]
+
+        self.track_name: str | None = recent_track.get("name")
+        self.album_name: str | None = recent_track.get("album", {}).get("#text")
+        self.artist_names: str | None = [recent_track.get("artist", {}).get("#text")]
+        self.image_url: str = recent_track["image"][0]["#text"].replace(
+            "/i/u/34s/",
+            "/i/u/600x600/",
+        )  # find 600px version
+
+    @property
+    def artwork(self) -> Image.Image | None:
+        artwork = super().artwork
+
+        missing_art_hash = 3202077406
+
         if (
-            self.previously_generated_url == image_url
-        ):  # wallpaper has already been generated
-            return "generated"
-
-        art = self.get_image(image_url)
-        if (
-            art is None
-            # Or if image couldn't be downloaded (lastfm)
-            or ImageChops.difference(art, self.missing_art).getbbox() is None
+            artwork is None
+            or xxhash.xxh32(artwork.tobytes("raw")).intdigest() == missing_art_hash
         ):
-            return "default"
+            return None
 
-        self.previously_generated_url = image_url
-        return art
+        return artwork
+
+    @property
+    def spotify_code_image(self) -> None:
+        return None
+
+    def __eq__(self, other: LastfmTrack) -> bool:
+        if not isinstance(other, LastfmTrack):
+            return NotImplemented
+        return (
+            self.track_name == other.track_name and self.album_name == other.album_name
+        )
+
+
+class SpotifyTrack(Track):  # noqa: PLW1641
+    def __init__(self, response: dict) -> None:
+        item = response["item"]
+
+        self.track_name: str | None = item.get("name")
+        self.track_id: str | None = item.get("id")
+        self.album_name: str | None = item.get("album", {}).get("name")
+        self.album_id: str | None = item.get("album", {}).get("id")
+        self.artist_names: list[str] = [
+            artist.get("name") for artist in item.get("artists", [])
+        ]
+        self.artist_ids: list[str] = [
+            artist.get("id") for artist in item.get("artists", [])
+        ]
+        self.image_url: str = item.get("album", {}).get("images", [{}])[0].get("url")
+
+    @functools.cached_property
+    def spotify_code_url(self) -> str | None:
+        dominant_color = self.dominant_colors[0]
+        uri = f"spotify:track:{self.track_id}"
+
+        Y = imagegen.luminance(*dominant_color)  # noqa: N806
+        L_star = imagegen.perceived_lightness(Y)  # noqa: N806
+
+        code_color = "white" if L_star < 50 else "black"  # noqa: PLR2004
+
+        r, g, b = dominant_color
+
+        width = ConfigManager.settings["foreground"]["size"]
+
+        min_width = 300
+        if width < min_width:
+            return None
+
+        width = min(width, 2000)
+
+        return f"https://scannables.scdn.co/uri/plain/png/{r:02x}{g:02x}{b:02x}/{code_color}/{width}/{uri}"
+
+    @property
+    def spotify_code_image(self) -> Image.Image | None:
+        spotify_code_url = self.spotify_code_url
+        if spotify_code_url is None:
+            return None
+        return misc.download_image(self.spotify_code_url)
+
+    def __eq__(self, other: SpotifyTrack) -> bool:
+        if not isinstance(other, SpotifyTrack):
+            return NotImplemented
+        return self.track_id == other.track_id
 
 
 class BatterySaverCheckThread(QtCore.QThread):
     # https://stackoverflow.com/a/33150936
-    def __init__(self, pause_state_manager, parent=None):
-        QtCore.QThread.__init__(self, parent)
+    def __init__(self, pause_state_manager: PauseStateManager) -> None:
+        QtCore.QThread.__init__(self, parent=None)
         self.pause_state_manager = pause_state_manager
 
-    def run(self):
+    def run(self) -> None:
         try:
             # if disable_on_battery_saver disabled then kill this thread
             if not ConfigManager.settings["power"]["disable_on_battery_saver"]:
@@ -178,16 +252,22 @@ class BatterySaverCheckThread(QtCore.QThread):
 
                 battery_saver_enabled_previous = battery_saver_enabled
                 self.sleep.wait(1)
-        except Exception as e:
+        except Exception:
             app_log.exception("BatterySaverCheck Error")
             if __debug__:
-                raise e
+                raise
 
 
 class WorkerThread(QtCore.QThread):
-    def run(self):
+    def __init__(self, parent: QtWidgets.QWidget = None) -> None:
+        super().__init__(parent)
+        self._stop_event = threading.Event()
+        self.sleep = threading.Event()
+        self.disabled = False
+
+    def run(self) -> None:
         try:
-            self.sleep = threading.Event()  # improves pause responsiveness
+            self._stop_event.clear()
 
             self._pause_request = ConfigManager.settings["miscellaneous"]["paused"]
             self._battery_saver = (
@@ -197,46 +277,56 @@ class WorkerThread(QtCore.QThread):
 
             self.disabled = ConfigManager.settings["miscellaneous"]["paused"]
 
-            self.get_art = CurrentArt(service=ConfigManager.settings["service"]["name"])
+            self.get_art = CurrentArt(
+                service=ConfigManager.settings["service"]["option"],
+            )
 
             request_interval = ConfigManager.settings["service"]["request_interval"]
 
             wallaper_generator = GenerateWallpaper(app)
 
-            while True:
+            while not self._stop_event.is_set():
                 if self.disabled:
-                    self.sleep.wait()
+                    self.sleep.wait(1)
+                    continue
 
                 start = time.time()
-                image = self.get_art.get_current_art()
-                wallaper_generator.generate(image)
+                wallpaper_action: GenerateNew | SetDefault | Unchanged | SetPrevious = (
+                    self.get_art.current_wallpaper_action()
+                )
+                wallaper_generator.generate(wallpaper_action)
 
-                if type(image) == Image.Image:
-                    print(f"TOTAL TIME = {time.time() - start}")
+                if isinstance(wallpaper_action, Image.Image):
+                    print(f"TOTAL TIME = {(time.time() - start) * 1000:.4g} ms")
 
-                self.sleep.wait(request_interval)
+                if self._stop_event.wait(request_interval):
+                    break
 
-        except Exception as e:
+        except Exception:
             app_log.exception("Worker Error")
             if __debug__:
-                raise e
+                raise
 
-    def check_state(self):
+    def _wait_for_wakeup(self, timeout: float | None = None) -> bool:
+        self.sleep.wait(timeout)
+        return not self._stop_event.is_set()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        self.sleep.set()
+
+    def check_state(self) -> None:
         if self.disabled:
             self.sleep.clear()
-            Wallpaper.set(is_default=True)
+            WindowsWallpaper.set_default_wallpaper()
         else:
-            try:
+            with contextlib.suppress(Exception):
                 self.sleep.set()
-            except Exception:
-                pass
-            try:
+            with contextlib.suppress(AttributeError):
                 self.get_art.previous_image_url = None
-            except AttributeError:
-                pass
 
     @QtCore.Slot(str)
-    def pause_state(self, state: str):
+    def pause_state(self, state: str) -> None:
         if state in ("disabled", "battery_saver"):
             self.disabled = True
         else:
@@ -249,7 +339,7 @@ class PauseStateSignals(QtCore.QObject):
 
 
 class PauseStateManager:
-    def __init__(self, signal):
+    def __init__(self, signal: QtCore.Signal) -> None:
         self.user_pause = ConfigManager.settings["miscellaneous"]["paused"]
         self.battery_saver = False
 
@@ -257,39 +347,37 @@ class PauseStateManager:
         self.locker = QtCore.QMutexLocker(mutex)
         self.signal = signal
 
-    def toggle_pause(self):
+    def toggle_pause(self) -> None:
         with self.locker:
             self.user_pause = not self.user_pause
             ConfigManager.settings["miscellaneous"]["paused"] = self.user_pause
-            ConfigManager.save()
-        self._send_signal()
+            ConfigManager.save_widget_state()
+        self.send_signal()
 
-    def set_battery_saver(self, enabled: bool):
+    def set_battery_saver(self, *, enabled: bool) -> None:
         with self.locker:
             self.battery_saver = enabled
-        self._send_signal()
+        self.send_signal()
 
     def _state(self) -> str:
         with self.locker:
             if self.battery_saver:
                 return "battery_saver"
-            elif self.user_pause:
+            if self.user_pause:
                 return "disabled"
-            else:
-                return "enabled"
+            return "enabled"
 
-    def _send_signal(self):
+    def send_signal(self) -> None:
         self.signal.pause_state.emit(self._state())
 
 
-"""
-Some methods to run when the program starts
-"""
-
-
 class OnStartup:
+    """
+    Some methods to run when the program starts
+    """
+
     @staticmethod
-    def start_logger():
+    def start_logger() -> logging.Logger:
         try:
             handler = logging.handlers.RotatingFileHandler(
                 "errors.log",
@@ -311,10 +399,13 @@ class OnStartup:
 
     @staticmethod
     def start_QApplication() -> None:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("AlbumPaper")
         try:
             app = QtWidgets.QApplication(sys.argv)
         except RuntimeError:  # occurs on restart
             app = QtWidgets.QApplication.instance()
+
+        app.setApplicationName("AlbumPaper")
 
         app.setQuitOnLastWindowClosed(False)
 
@@ -344,54 +435,54 @@ if __name__ in "__main__":
                 icon=QtGui.QIcon("assets/icons/enabled.png"),
                 parent=widget,
                 signal=pause_state_signals,
-                version=VERSION,
                 pause_state_manager=pause_state_manager,
             )
 
             try:
-                mutex = winapi.NamedMutex(b"AlbumPaperDev")
+                name = b"AlbumPaper-dev" if __debug__ else b"AlbumPaper"
+                mutex = winapi.NamedMutex(name)
             except winapi.MutexNotAquiredError:
                 tray_icon.showMessage("App already open", "")
                 sys.exit()
 
             tray_icon.show()
 
-            if not os.path.exists("images"):
-                os.makedirs("images")
-            if not os.path.exists("images/default_wallpaper.jpg"):
-                Wallpaper.set_default()
+            Path.unlink(AppPaths.DROP_SHADOW, missing_ok=True)
+            if not Path.exists("./cache/images"):
+                Path.mkdir("./cache/images", parents=True, exist_ok=True)
+            if not Path.exists(AppPaths.DEFAULT_WALLPAPER):
+                WindowsWallpaper.cache_current()
 
-            check_for_updates(tray_icon=tray_icon)
+            err_message = ConfigManager.validate_service()
 
-            try:
-                ConfigManager.validate_service()
-            except ConfigValidationError as e:
-                tray_icon.showMessage(e.message, "")
-                settings_window = SettingsWindow(tray_icon)
-                exit_code = settings_window.exec()
-            else:
-                battery_saver_check_thread = BatterySaverCheckThread(
-                    pause_state_manager
-                )
-                battery_saver_check_thread.start(priority=QtCore.QThread.LowestPriority)
+            if err_message:
+                tray_icon.showMessage(err_message, "")
+                tray_icon.settings_window.show()
 
+            battery_saver_check_thread = BatterySaverCheckThread(
+                pause_state_manager,
+            )
+            battery_saver_check_thread.start(priority=QtCore.QThread.LowestPriority)
+
+            if not err_message:
                 worker_thread = WorkerThread()
                 pause_state_signals.pause_state.connect(worker_thread.pause_state)
-
                 pause_state_signals.pause_state.connect(tray_icon.pause_state)
 
                 worker_thread.finished.connect(app.exit)
                 worker_thread.start(priority=QtCore.QThread.LowPriority)
 
-                pause_state_manager._send_signal()
+            pause_state_manager.send_signal()
 
-                exit_code = app.exec()
+            exit_code = app.exec()
 
-                worker_thread.terminate()
+            if not err_message:
+                worker_thread.stop()
+                worker_thread.wait()
 
-        except Exception as e:
+        except Exception:
             app_log.exception("main error")
             if __debug__:
-                raise e
+                raise
 
     mutex.release()

@@ -1,14 +1,20 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
-from configuration import ConfigManager, ConfigValidationError
+import requests
+from configuration import AppPaths, ConfigManager
+from packaging.version import Version
 from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
-from wallpaper import Wallpaper
+from wallpaper import BackgroundType, WindowsWallpaper
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from albumpaper import PauseStateManager
+
+VERSION = Version("v4.2.0")
 
 
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
@@ -17,14 +23,12 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         icon: QtGui.QIcon,
         parent: QtWidgets.QWidget,
         signal: QtCore.Signal,
-        version: str,
-        pause_state_manager,
+        pause_state_manager: PauseStateManager,
     ) -> None:
         super().__init__(icon, parent)
         self.setToolTip("AlbumPaper")
         self.context_menu = QtWidgets.QMenu(parent)
         self.signal = signal
-        self.VERSION = version
         self.pause_state_manager = pause_state_manager
 
         if QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark:
@@ -46,55 +50,51 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         )
         settings_item.triggered.connect(self.settings)
         self.settings_window = SettingsWindow(self)
+        ConfigManager.init_widgets()
 
-        # self.context_menu.addSeparator()
+        latest_version = self.latest_stable_update()
 
-        # self.help_menu = self.context_menu.addMenu(
-        #     QtGui.QIcon(f"assets/icons/{self.icon_color}/help.png"), "Help"
-        # )
-        # help_latest = self.help_menu.addAction("Latest Release")
-        # help_current = self.help_menu.addAction("This Release")
-        # github_link = "https://github.com/jac0b-w/AlbumPaper/"
-        # help_latest.triggered.connect(
-        #     self.open_link(f"{github_link}blob/master/README.md")
-        # )
-        # help_current.triggered.connect(
-        #     self.open_link(f"{github_link}blob/{self.VERSION}/README.md")
-        # )
+        self.messageClicked.connect(
+            self.open_link("https://github.com/jac0b-w/AlbumPaper/releases"),
+        )
 
-        # bug_report_item = self.context_menu.addAction(
-        #     QtGui.QIcon(f"assets/icons/{self.icon_color}/bug_report.png"), "Bug Report"
-        # )
-        # bug_report_item.triggered.connect(self.open_link(f"{github_link}issues"))
+        if latest_version > VERSION:
+            self.context_menu.addSeparator()
 
-        # release_item = self.context_menu.addAction(
-        #     QtGui.QIcon(f"assets/icons/{self.icon_color}/update.png"), f"{self.VERSION}"
-        # )
-        # release_item.triggered.connect(self.open_link(f"{github_link}releases"))
+            release_item = self.context_menu.addAction(
+                QtGui.QIcon(f"assets/icons/{self.icon_color}/update.png"),
+                f"Update avaliable (v{latest_version})",
+            )
+            release_item.triggered.connect(
+                self.open_link(
+                    "https://www.github.com/jac0b-w/AlbumPaper/releases/latest",
+                ),
+            )
+
+            self.showMessage("New update", f"Update v{latest_version} available")
 
         self.context_menu.addSeparator()
 
         self.pause_item = self.context_menu.addAction(
-            QtGui.QIcon(f"assets/icons/{self.icon_color}/pause.png"), "Pause"
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/pause.png"),
+            "Pause",
         )
         self.pause_item.triggered.connect(self.toggle_pause)
 
         restart_item = self.context_menu.addAction(
-            QtGui.QIcon(f"assets/icons/{self.icon_color}/restart.png"), "Restart"
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/restart.png"),
+            "Restart",
         )
         restart_item.triggered.connect(self.exit(1))
 
         exit_item = self.context_menu.addAction(
-            QtGui.QIcon(f"assets/icons/{self.icon_color}/close.png"), "Quit"
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/close.png"),
+            "Quit",
         )
         exit_item.triggered.connect(self.exit(0))
 
         self.setContextMenu(self.context_menu)
         self.activated.connect(self.clicked)
-
-        self.messageClicked.connect(
-            self.open_link("https://github.com/jac0b-w/AlbumPaper/releases")
-        )
 
     def clicked(self, reason: QtWidgets.QSystemTrayIcon.ActivationReason) -> None:
         # self.Trigger is left click
@@ -122,14 +122,14 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
         self.pause_item.setText(options["text"])
         self.pause_item.setIcon(
-            QtGui.QIcon(f"assets/icons/{self.icon_color}/{options['icon']}.png")
+            QtGui.QIcon(f"assets/icons/{self.icon_color}/{options['icon']}.png"),
         )
         self.pause_item.setEnabled(options["enabled"])
 
         self.setIcon(QtGui.QIcon(f"assets/icons/{state}.png"))
 
     def set_default_wallpaper(self) -> None:
-        Wallpaper.set_default()
+        WindowsWallpaper.cache_current()
         self.showMessage("Saved", "Wallpaper saved as default")
 
     def open_link(self, link: str) -> Callable:
@@ -137,14 +137,30 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
     def exit(self, exit_code: int) -> Callable:
         def exit_function() -> None:
-            Wallpaper.set(is_default=True)
+            WindowsWallpaper.set_default_wallpaper()
             QtWidgets.QApplication.exit(exit_code)
 
         return exit_function
 
-    def update_value(self, value: int):
-        self.slider.setValue(value)
-        self.spin_box.setValue(value)
+    def latest_stable_update(self) -> Version:
+        if not ConfigManager.settings["updates"]["check_for_updates"]:
+            return VERSION
+
+        try:
+            response = requests.get(
+                "https://api.github.com/repos/jac0b-w/AlbumPaper/releases/latest",
+                timeout=1,
+            )
+            latest_version: str = response.json()["tag_name"]
+        except:  # noqa: E722
+            return VERSION
+        if any(substring in latest_version for substring in ["alpha", "beta"]):
+            return VERSION
+
+        if Version(latest_version) > VERSION:
+            return Version(latest_version)
+
+        return VERSION
 
 
 class SettingsWindow(QtWidgets.QWidget):
@@ -160,14 +176,8 @@ class SettingsWindow(QtWidgets.QWidget):
             settings_icon_path = "assets/icons/black/settings.png"
 
         if Path(settings_icon_path).exists():
-            self.setWindowIcon(QtGui.QIcon(settings_icon_path))
-
-        # self.init_service_section()
-        # self.main_layout.addRow(QtWidgets.QLabel(""))
-        # self.init_layer_section()
-        # self.main_layout.addRow(QtWidgets.QLabel(""))
-        # self.init_misc_section()
-        # self.main_layout.addRow(QtWidgets.QLabel(""))
+            self.my_icon = QtGui.QIcon(settings_icon_path)
+            self.setWindowIcon(self.my_icon)
 
         self.main_layout = QtWidgets.QHBoxLayout()
 
@@ -186,53 +196,86 @@ class SettingsWindow(QtWidgets.QWidget):
         self.settings_pages.addWidget(wallpaper_settings)
         self.settings_pages.addWidget(service_settings)
 
-        # Save button
-        # self.save_button = QtWidgets.QPushButton("Save")
-        # self.save_button.clicked.connect(self.save)
-        # self.save_button.setDefault(True)
-        # self.main_layout.addRow("", self.save_button)
-
         self.setLayout(self.main_layout)
 
-        ConfigManager.init_widgets()
+    def closeEvent(self, event: QtCore.QEvent) -> None:
+        self.save(event)
 
-    def closeEvent(self, event):
-        self.save()
-        # return super().closeEvent(event)
-
-    def save(self):
-        try:
-            ConfigManager.save()  # save settings.ini and services.ini
-        except ConfigValidationError as e:
-            print("ERROR")
-            self.tray_icon.showMessage(e.message, "")
+    def save(self, event: QtCore.QEvent) -> None:
+        err_message = ConfigManager.validate_service()
+        print(err_message)
+        if err_message:
+            self.tray_icon.showMessage(err_message, "")
+            event.ignore()
         else:
+            ConfigManager.save_widget_state()
             QtWidgets.QApplication.exit(1)  # send restart exit code
+
+    def openEvent(self, _event: QtCore.QEvent) -> None:
+        if ConfigManager.validate_service():
+            self.settings_pages.setCurrentIndex(2)
 
 
 class GeneralSettings(QtWidgets.QWidget):
     def __init__(self, parent: Self | None = None) -> None:
         super().__init__(parent)
 
-        self.main_layout = QtWidgets.QFormLayout()
+        self.info_panel = QtWidgets.QWidget()
+        self.info_panel.setLayout(QtWidgets.QVBoxLayout())
+        self.info_panel.layout().setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.info_panel.setStyleSheet("background-color; rgba(128, 128, 128, 20)")
+
+        ap_label = QtWidgets.QLabel("AlbumPaper")
+        ap_label.setStyleSheet("font-size: 36px;")
+
+        gh_link = "https://github.com/jac0b-w/AlbumPaper"
+        links_label = QtWidgets.QLabel(
+            f"""<a href="{gh_link}">GitHub</a><br>
+                <a href="{gh_link}/releases">Releases</a><br>
+                <a href="{gh_link}/issues">Report a bug</a><br>
+                <a href="https://www.buymeacoffee.com/jac0b">Support AlbumPaper</a>""",
+        )
+        links_label.setOpenExternalLinks(True)
+
+        self.info_panel.layout().addWidget(ap_label)
+        self.info_panel.layout().addWidget(links_label)
 
         self.default_wallpaper_widget = DefaultWallpaperPreview(self)
 
-        self.main_layout.addRow("Default Wallpaper", self.default_wallpaper_widget)
+        cache_size_label = QtWidgets.QLabel("Cache Size (MB)")
+        cache_size_label.setToolTip(
+            "Larger cache size may lower wallpaper generation time",
+        )
+
+        self.cache_size_spinbox = ConfigManager.register(
+            ("settings", "cache", "size"),
+            QtWidgets.QSpinBox(minimum=3, maximum=100),
+        )
 
         self.check_updates_checkbox = ConfigManager.register(
             ("settings", "updates", "check_for_updates"),
             QtWidgets.QCheckBox(),
         )
-        self.main_layout.addRow("Check for updates", self.check_updates_checkbox)
 
         self.battery_saver_checkbox = ConfigManager.register(
             ("settings", "power", "disable_on_battery_saver"),
             QtWidgets.QCheckBox(),
         )
-        self.main_layout.addRow("Pause on Battery Saver", self.battery_saver_checkbox)
 
-        self.setLayout(self.main_layout)
+        # layout
+        self.setLayout(QtWidgets.QGridLayout())
+        self.layout().setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
+        # info panel
+        self.layout().addWidget(self.info_panel, 0, 0, 1, 2)
+        # settins
+        self.layout().addWidget(QtWidgets.QLabel("Default Wallpaper"), 1, 0)
+        self.layout().addWidget(self.default_wallpaper_widget, 1, 1)
+        self.layout().addWidget(cache_size_label, 2, 0)
+        self.layout().addWidget(self.cache_size_spinbox, 2, 1)
+        self.layout().addWidget(QtWidgets.QLabel("Check for updates"), 3, 0)
+        self.layout().addWidget(self.check_updates_checkbox, 3, 1)
+        self.layout().addWidget(QtWidgets.QLabel("Pause on Battery Saver"), 4, 0)
+        self.layout().addWidget(self.battery_saver_checkbox, 4, 1)
 
 
 class DefaultWallpaperPreview(QtWidgets.QWidget):
@@ -256,7 +299,7 @@ class DefaultWallpaperPreview(QtWidgets.QWidget):
 
         set_current_btn.setFixedWidth(100)
         set_current_btn.setStyleSheet(
-            f"background-color: rgba({color.red()}, {color.green()}, {color.blue()}, 255);"
+            f"background-color:rgba({color.red()},{color.green()},{color.blue()},255);",
         )
 
         set_current_btn.clicked.connect(self.set_default_wallpaper)
@@ -278,13 +321,13 @@ class DefaultWallpaperPreview(QtWidgets.QWidget):
 
     def update_pixmap(self) -> None:
         w = 320
-        self.pixmap = QtGui.QPixmap("images/default_wallpaper.jpg").scaledToWidth(
-            w, Qt.SmoothTransformation
+        self.pixmap = QtGui.QPixmap(AppPaths.DEFAULT_WALLPAPER).scaledToWidth(
+            w, Qt.SmoothTransformation,
         )
         self.label.setPixmap(self.pixmap)
 
     def set_default_wallpaper(self) -> None:
-        Wallpaper.set_default()
+        WindowsWallpaper.cache_current()
         self.update_pixmap()
 
 
@@ -363,7 +406,7 @@ class BackgroundTab(QtWidgets.QWidget):
         # solid color section
 
         solid_color_group = ConfigManager.register(
-            ("background", "solidcolor", "enabled"),
+            ("background", BackgroundType.SOLID_COLOR, "enabled"),
             QtWidgets.QCheckBox("Solid Color"),
         )
 
@@ -371,11 +414,11 @@ class BackgroundTab(QtWidgets.QWidget):
 
         gradient_checkboxes = [
             linear_gradient_checkbox := ConfigManager.register(
-                ("background", "lineargradient", "enabled"),
+                ("background", BackgroundType.LINEAR_GRADIENT, "enabled"),
                 QtWidgets.QCheckBox("Linear Gradient"),
             ),
             radial_gradient_checkbox := ConfigManager.register(
-                ("background", "radialgradient", "enabled"),
+                ("background", BackgroundType.RADIAL_GRADIENT, "enabled"),
                 QtWidgets.QCheckBox("Radial Gradient"),
             ),
         ]
@@ -391,9 +434,7 @@ class BackgroundTab(QtWidgets.QWidget):
         linear_gradient_checkbox.clicked.connect(checkbox_toggle)
         radial_gradient_checkbox.clicked.connect(checkbox_toggle)
         gradient_color_groupbox.clicked.connect(
-            lambda checked: [
-                cb.setChecked(checked) for cb in gradient_checkboxes
-            ],
+            lambda checked: [cb.setChecked(checked) for cb in gradient_checkboxes],
         )
 
         gradient_color_groupbox.layout().addWidget(linear_gradient_checkbox)
@@ -402,7 +443,7 @@ class BackgroundTab(QtWidgets.QWidget):
         # colored noise section
 
         colored_noise_groupbox = ConfigManager.register(
-            ("background", "colorednoise", "enabled"),
+            ("background", BackgroundType.COLORED_NOISE, "enabled"),
             QtWidgets.QGroupBox("Colored Noise", checkable=True),
         )
         colored_noise_groupbox.setLayout(QtWidgets.QGridLayout())
@@ -411,26 +452,26 @@ class BackgroundTab(QtWidgets.QWidget):
             QtCore.Qt.Orientation.Horizontal,
         )
         colored_noise_groupbox.spin_box = ConfigManager.register(
-            ("background", "colorednoise", "no_colors"),
+            ("background", BackgroundType.COLORED_NOISE, "no_colors"),
             QtWidgets.QSpinBox(),
         )
 
         min_colors, max_colors = 3, 10
 
         colored_noise_groupbox.slider.valueChanged.connect(
-            colored_noise_groupbox.spin_box.setValue
+            colored_noise_groupbox.spin_box.setValue,
         )
         colored_noise_groupbox.slider.setMinimum(min_colors)
         colored_noise_groupbox.slider.setMaximum(max_colors)
 
         colored_noise_groupbox.spin_box.valueChanged.connect(
-            colored_noise_groupbox.slider.setValue
+            colored_noise_groupbox.slider.setValue,
         )
         colored_noise_groupbox.spin_box.setMinimum(min_colors)
         colored_noise_groupbox.spin_box.setMaximum(max_colors)
 
         colored_noise_blur_checkbox = ConfigManager.register(
-            ("background", "colorednoise", "blur"),
+            ("background", BackgroundType.COLORED_NOISE, "blur"),
             QtWidgets.QCheckBox("Blur"),
         )
 
@@ -442,26 +483,28 @@ class BackgroundTab(QtWidgets.QWidget):
         # album art section
 
         album_art_groupbox = ConfigManager.register(
-            ("background", "albumart", "enabled"),
+            ("background", BackgroundType.ALBUM_ART, "enabled"),
             QtWidgets.QGroupBox("Album Art", checkable=True),
         )
         album_art_groupbox.setLayout(QtWidgets.QVBoxLayout())
         album_art_groupbox.layout().addWidget(
             ConfigManager.register(
-                ("background", "albumart", "blur"),
+                ("background", BackgroundType.ALBUM_ART, "blur"),
                 QtWidgets.QCheckBox("Blur"),
             ),
         )
 
         wallpaper_groupbox = ConfigManager.register(
-            ("background", "wallpaper", "enabled"),
+            ("background", BackgroundType.DEFAULT_WALLPAPER, "enabled"),
             QtWidgets.QGroupBox("Wallpaper", checkable=True),
         )
         wallpaper_groupbox.setLayout(QtWidgets.QVBoxLayout())
-        wallpaper_groupbox.layout().addWidget(ConfigManager.register(
-                ("background", "wallpaper", "blur"),
+        wallpaper_groupbox.layout().addWidget(
+            ConfigManager.register(
+                ("background", BackgroundType.DEFAULT_WALLPAPER, "blur"),
                 QtWidgets.QCheckBox("Blur"),
-            ))
+            ),
+        )
 
         groupbox_layout = QtWidgets.QVBoxLayout()
         self.selected_background_groupbox.setLayout(groupbox_layout)
@@ -487,7 +530,7 @@ class ForegroundTab(QtWidgets.QGroupBox):
 
         self.slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         self.spin_box = ConfigManager.register(
-            ("settings","foreground","size"),
+            ("settings", "foreground", "size"),
             QtWidgets.QSpinBox(),
         )
 
@@ -505,10 +548,22 @@ class ForegroundTab(QtWidgets.QGroupBox):
         self.spin_box.setMaximum(max_res)
         self.spin_box.setSingleStep(interval)
 
+        drop_shadow_checkbox = ConfigManager.register(
+            ("settings", "foreground", "drop_shadow"),
+            QtWidgets.QCheckBox("Drop Shadow"),
+        )
+
+        spotify_codes_checkbox = ConfigManager.register(
+            ("settings", "foreground", "spotify_code"),
+            QtWidgets.QCheckBox("Show Spotify Code"),
+        )
+
         layout = QtWidgets.QGridLayout()
         layout.addWidget(label, 1, 0)
         layout.addWidget(self.slider, 1, 1)
         layout.addWidget(self.spin_box, 1, 2)
+        layout.addWidget(drop_shadow_checkbox, 2, 0, 1, 3)
+        layout.addWidget(spotify_codes_checkbox, 3, 0, 1, 3)
         layout.setAlignment(QtCore.Qt.AlignTop)
 
         self.setTitle("Show Foreground Art")
@@ -516,7 +571,7 @@ class ForegroundTab(QtWidgets.QGroupBox):
         self.setCheckable(True)
 
         ConfigManager.register(
-            ("settings","foreground","enabled"),
+            ("settings", "foreground", "enabled"),
             self,
         )
 
@@ -529,12 +584,13 @@ class ServiceSettings(QtWidgets.QWidget):
 
         # https://stackoverflow.com/questions/11826036/pyside-show-hide-layouts
 
-        index = {"spotify": 0, "last.fm": 1}[ConfigManager.settings["service"]["name"]]
-
         self.api_keys_stacked = QtWidgets.QStackedWidget()
-        self.api_keys_stacked.setCurrentIndex(index)
 
-        self.service_combo = QtWidgets.QComboBox()
+        self.service_combo = ConfigManager.register(
+            ("settings", "service", "option"),
+            QtWidgets.QComboBox(),
+        )
+
         self.service_combo.addItems(["Spotify (recommended)", "Last.fm"])
         self.service_combo.currentIndexChanged.connect(
             self.api_keys_stacked.setCurrentIndex,
@@ -544,8 +600,9 @@ class ServiceSettings(QtWidgets.QWidget):
         self.main_layout.addRow(self.api_keys_stacked)
 
         def create_help_link(service_name: str) -> QtWidgets.QLabel:
+            page = "https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys"
             help_link = QtWidgets.QLabel(
-                f'<a href="https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys#{service_name.replace(".", "")}">'
+                f'<a href="{page}#{service_name.replace(".", "")}">'
                 f"Where do I find {service_name} API keys?</a>",
             )
             help_link.linkActivated.connect(
@@ -559,22 +616,24 @@ class ServiceSettings(QtWidgets.QWidget):
         secrets_layout = QtWidgets.QFormLayout()
         secrets_group.setLayout(secrets_layout)
 
-        self.spotify_client_id = QtWidgets.QLineEdit()
-        self.spotify_client_secret = QtWidgets.QLineEdit()
+        self.spotify_client_id = ConfigManager.register(
+            ("services", "spotify", "client_id"),
+            QtWidgets.QLineEdit(),
+        )
+        self.spotify_client_secret = ConfigManager.register(
+            ("services", "spotify", "client_secret"),
+            QtWidgets.QLineEdit(),
+        )
         self.spotify_client_id.setPlaceholderText("Client ID")
         self.spotify_client_secret.setPlaceholderText("Client Secret")
         self.spotify_client_id.setMaxLength(32)
         self.spotify_client_secret.setMaxLength(32)
-        self.spotify_client_id.setText(ConfigManager.services["spotify"]["client_id"])
-        self.spotify_client_secret.setText(
-            ConfigManager.services["spotify"]["client_secret"]
+        self.spotify_specific_device_checkbox = ConfigManager.register(
+            ("settings", "service", "is_device_specific"),
+            QtWidgets.QComboBox(),
         )
-        self.spotify_specific_device_checkbox = QtWidgets.QComboBox()
         self.spotify_specific_device_checkbox.addItems(
-            ["All Devices", "Only this Device (Spotify Desktop)"]
-        )
-        self.spotify_specific_device_checkbox.setCurrentIndex(
-            int(ConfigManager.settings["service"]["is_device_specific"])
+            ["All Devices", "Only this Device (Spotify Desktop)"],
         )
 
         widget = QtWidgets.QWidget()
@@ -593,13 +652,17 @@ class ServiceSettings(QtWidgets.QWidget):
         secrets_layout = QtWidgets.QFormLayout()
         secrets_group.setLayout(secrets_layout)
 
-        self.lastfm_username = QtWidgets.QLineEdit()
-        self.lastfm_api_key = QtWidgets.QLineEdit()
+        self.lastfm_username = ConfigManager.register(
+            ("services", "last.fm", "username"),
+            QtWidgets.QLineEdit(),
+        )
+        self.lastfm_api_key = ConfigManager.register(
+            ("services", "last.fm", "api_key"),
+            QtWidgets.QLineEdit(),
+        )
         self.lastfm_username.setPlaceholderText("Username")
         self.lastfm_api_key.setPlaceholderText("API Key")
         self.lastfm_api_key.setMaxLength(32)
-        self.lastfm_username.setText(ConfigManager.services["last.fm"]["username"])
-        self.lastfm_api_key.setText(ConfigManager.services["last.fm"]["api_key"])
 
         widget = QtWidgets.QWidget()
         self.api_keys_stacked.addWidget(widget)
