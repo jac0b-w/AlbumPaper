@@ -1,9 +1,6 @@
 #![allow(clippy::manual_map)]
 
-use image::{
-    DynamicImage, GrayAlphaImage, ImageBuffer, ImageReader, LumaA, RgbImage, Rgba, RgbaImage,
-    imageops,
-};
+use image::{DynamicImage, GrayAlphaImage, ImageBuffer, ImageReader, LumaA, RgbImage, Rgba, RgbaImage, imageops};
 use libblur::{self, GaussianBlurParams};
 use pyo3::prelude::*;
 use rand::Rng;
@@ -153,7 +150,11 @@ pub fn generate_wallpaper(config: GenerationConfig) -> RgbImage {
     if config.foreground.drop_shadow {
         let drop_shadow_image = match ImageReader::open(DROP_SHADOW_PATH) {
             Ok(drop_shadow_data) => drop_shadow_data.decode().unwrap().to_rgba8(),
-            Err(_e) => generate_save_drop_shadow(&foreground),
+            Err(_e) => {
+                let drop_shadow = generate_drop_shadow(&foreground);
+                drop_shadow.save(DROP_SHADOW_PATH).unwrap();
+                drop_shadow
+            },
         };
         imageops::overlay(&mut base, &drop_shadow_image, 0, 0);
     }
@@ -196,34 +197,34 @@ fn add_blur(image: DynamicImage, blur_radius: u32) -> DynamicImage {
     .unwrap()
 }
 
-fn generate_save_drop_shadow(foreground: &RgbaImage) -> RgbaImage {
+
+pub fn generate_drop_shadow(foreground: &RgbaImage) -> RgbaImage {
     let (width, height) = foreground.dimensions();
 
     let mut rng = rand::rng();
 
-    let mask: ImageBuffer<LumaA<u16>, Vec<u16>> = ImageBuffer::from_fn(width, height, |x, y| {
+    let mask = GrayAlphaImage::from_fn(width, height, |x, y| {
         let rgba_pixel = foreground.get_pixel(x, y);
-        let alpha_16 = rgba_pixel[3] as u16 * 257;
 
-        LumaA([0u16, alpha_16])
+        LumaA([0u8, rgba_pixel[3]])
     });
 
-    let drop_shadow = add_blur(DynamicImage::ImageLumaA16(mask), 120).to_luma_alpha16();
+    let drop_shadow = add_blur(DynamicImage::ImageLumaA8(mask), 120).to_luma_alpha8();
+
+    // let dithered_vec = Vec::with_capacity((width*height) as usize);
 
     let dithered_drop_shadow =
         ImageBuffer::from_fn(drop_shadow.width(), drop_shadow.height(), |x, y| {
             let pixel = drop_shadow.get_pixel(x, y);
 
-            let alpha = (pixel[1] as i32 / 257) as i32;
+            let alpha_8_floor = pixel[1] as i32;
+            let noise = rng.random_range(-3..=3);
+            let dithered = (alpha_8_floor + noise).clamp(0, 255);
 
-            let dithered = (alpha + rng.random_range(-3..3)).clamp(0, 255) as u8;
-
-            LumaA([0u8, dithered])
+            LumaA([0u8, dithered as u8])
         });
 
     let drop_shadow = DynamicImage::ImageLumaA8(dithered_drop_shadow).to_rgba8();
-
-    drop_shadow.save(DROP_SHADOW_PATH).unwrap();
 
     drop_shadow
 }
