@@ -166,7 +166,7 @@ class GenerateWallpaper:
         image = track.artwork
 
         if self.spotify_code and track.spotify_code_image is not None:
-            spotify_code = structs.ImageBuffer(track.spotify_code_image)
+            spotify_code = structs.PythonImageBuffer(track.spotify_code_image)
 
         else:
             spotify_code = None
@@ -174,7 +174,7 @@ class GenerateWallpaper:
         color = imagegen.dominant_colors(image)[0]
         albumpaper_rs.generate_save_wallpaper(
             structs.GenerationConfig(
-                artwork=structs.ImageBuffer(image),
+                artwork=structs.PythonImageBuffer(image),
                 background=structs.BackgroundConfig(
                     background_type=BackgroundType.SOLID_COLOR,
                     color1=color,
@@ -195,7 +195,7 @@ class GenerateWallpaper:
         image = track.artwork
 
         if self.spotify_code and track.spotify_code_image is not None:
-            spotify_code = structs.ImageBuffer(track.spotify_code_image)
+            spotify_code = structs.PythonImageBuffer(track.spotify_code_image)
 
         else:
             spotify_code = None
@@ -204,7 +204,7 @@ class GenerateWallpaper:
 
         albumpaper_rs.generate_save_wallpaper(
             structs.GenerationConfig(
-                artwork=structs.ImageBuffer(image),
+                artwork=structs.PythonImageBuffer(image),
                 background=structs.BackgroundConfig(
                     background_type=BackgroundType.LINEAR_GRADIENT,
                     color1=from_color,
@@ -226,7 +226,7 @@ class GenerateWallpaper:
         image = track.artwork
 
         if self.spotify_code and track.spotify_code_image is not None:
-            spotify_code = structs.ImageBuffer(track.spotify_code_image)
+            spotify_code = structs.PythonImageBuffer(track.spotify_code_image)
 
         else:
             spotify_code = None
@@ -235,7 +235,7 @@ class GenerateWallpaper:
 
         albumpaper_rs.generate_save_wallpaper(
             structs.GenerationConfig(
-                artwork=structs.ImageBuffer(image),
+                artwork=structs.PythonImageBuffer(image),
                 background=structs.BackgroundConfig(
                     background_type=BackgroundType.RADIAL_GRADIENT,
                     color1=from_color,
@@ -257,7 +257,7 @@ class GenerateWallpaper:
         image = track.artwork
 
         if self.spotify_code and track.spotify_code_image is not None:
-            spotify_code = structs.ImageBuffer(track.spotify_code_image)
+            spotify_code = structs.PythonImageBuffer(track.spotify_code_image)
 
         else:
             spotify_code = None
@@ -271,7 +271,7 @@ class GenerateWallpaper:
         color1, color2 = self.gradient_colors(image)
         albumpaper_rs.generate_save_wallpaper(
             structs.GenerationConfig(
-                artwork=structs.ImageBuffer(image),
+                artwork=structs.PythonImageBuffer(image),
                 background=structs.BackgroundConfig(
                     background_type=BackgroundType.RADIAL_GRADIENT,
                     blur_radius=blur,
@@ -295,7 +295,7 @@ class GenerateWallpaper:
         image = track.artwork
 
         if self.spotify_code and track.spotify_code_image is not None:
-            spotify_code = structs.ImageBuffer(track.spotify_code_image)
+            spotify_code = structs.PythonImageBuffer(track.spotify_code_image)
 
         else:
             spotify_code = None
@@ -307,7 +307,7 @@ class GenerateWallpaper:
         )
         albumpaper_rs.generate_save_wallpaper(
             structs.GenerationConfig(
-                artwork=structs.ImageBuffer(image),
+                artwork=structs.PythonImageBuffer(image),
                 background=structs.BackgroundConfig(
                     background_type=BackgroundType.ALBUM_ART,
                     blur_radius=blur,
@@ -328,7 +328,7 @@ class GenerateWallpaper:
         image = track.artwork
 
         if self.spotify_code and track.spotify_code_image is not None:
-            spotify_code = structs.ImageBuffer(track.spotify_code_image)
+            spotify_code = structs.PythonImageBuffer(track.spotify_code_image)
 
         else:
             spotify_code = None
@@ -340,7 +340,7 @@ class GenerateWallpaper:
         )
         albumpaper_rs.generate_save_wallpaper(
             structs.GenerationConfig(
-                artwork=structs.ImageBuffer(image),
+                artwork=structs.PythonImageBuffer(image),
                 background=structs.BackgroundConfig(
                     background_type=BackgroundType.DEFAULT_WALLPAPER,
                     blur_radius=blur,

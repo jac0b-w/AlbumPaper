@@ -1,10 +1,12 @@
 #![allow(clippy::manual_map)]
 
 use image::{
-    DynamicImage, GrayAlphaImage, ImageReader, LumaA, RgbImage, Rgba, RgbaImage, imageops,
+    DynamicImage, GrayAlphaImage, ImageBuffer, ImageReader, LumaA, RgbImage, Rgba, RgbaImage,
+    imageops,
 };
 use libblur::{self, GaussianBlurParams};
 use pyo3::prelude::*;
+use rand::Rng;
 use std::io::BufReader;
 use std::{
     collections::hash_map::DefaultHasher,
@@ -29,12 +31,12 @@ fn albumpaper_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
 type Color = [u8; 3];
 
 #[derive(FromPyObject, Hash, PartialEq, Eq, Clone)]
-pub struct ImageBuffer {
+pub struct PythonImageBuffer {
     pub size: [u32; 2],
     pub buffer: Vec<u8>,
 }
 
-impl ImageBuffer {
+impl PythonImageBuffer {
     fn to_image(&self) -> RgbImage {
         RgbImage::from_raw(self.size[0], self.size[1], self.buffer.clone()).unwrap()
     }
@@ -42,7 +44,7 @@ impl ImageBuffer {
 
 #[derive(FromPyObject, Hash, PartialEq, Eq, Clone)]
 pub struct GenerationConfig {
-    pub artwork: ImageBuffer,
+    pub artwork: PythonImageBuffer,
     pub background: BackgroundConfig,
     pub foreground: ForegroundConfig,
     pub display_geometry: [u32; 2],
@@ -54,7 +56,7 @@ pub struct ForegroundConfig {
     pub show_artwork: bool,
     pub artwork_resize: u32,
     pub drop_shadow: bool,
-    pub spotify_code: Option<ImageBuffer>,
+    pub spotify_code: Option<PythonImageBuffer>,
 }
 
 #[derive(FromPyObject, Hash, PartialEq, Eq, Clone)]
@@ -127,7 +129,6 @@ pub fn generate_wallpaper(config: GenerationConfig) -> RgbImage {
         unknown => panic!("Unknown background type '{unknown}'"),
     };
 
-    
     let mut base = RgbaImage::new(config.display_geometry[0], config.display_geometry[1]);
 
     // Background Paste
@@ -138,28 +139,24 @@ pub fn generate_wallpaper(config: GenerationConfig) -> RgbImage {
     imageops::overlay(&mut base, &background, x, y);
 
     if !config.foreground.show_artwork {
-        return DynamicImage::ImageRgba8(base).to_rgb8()
+        return DynamicImage::ImageRgba8(base).to_rgb8();
     }
 
     let foreground = generate_foreground(
         artwork,
-        config.foreground.artwork_resize, 
-        config.foreground.spotify_code, 
-        config.display_geometry, 
-        config.available_geometry
+        config.foreground.artwork_resize,
+        config.foreground.spotify_code,
+        config.display_geometry,
+        config.available_geometry,
     );
 
     if config.foreground.drop_shadow {
         let drop_shadow_image = match ImageReader::open(DROP_SHADOW_PATH) {
-            Ok(drop_shadow_data) => {
-                drop_shadow_data.decode().unwrap().to_rgba8()
-            }
-            Err(_e) => {
-                generate_save_drop_shadow(&foreground)
-            }
+            Ok(drop_shadow_data) => drop_shadow_data.decode().unwrap().to_rgba8(),
+            Err(_e) => generate_save_drop_shadow(&foreground),
         };
         imageops::overlay(&mut base, &drop_shadow_image, 0, 0);
-}
+    }
 
     imageops::overlay(&mut base, &foreground, 0, 0);
 
@@ -199,20 +196,32 @@ fn add_blur(image: DynamicImage, blur_radius: u32) -> DynamicImage {
     .unwrap()
 }
 
-fn generate_save_drop_shadow(
-    foreground: &RgbaImage,
-) -> RgbaImage {
+fn generate_save_drop_shadow(foreground: &RgbaImage) -> RgbaImage {
     let (width, height) = foreground.dimensions();
 
-    let mask = GrayAlphaImage::from_fn(
-        width, height, |x, y| {
-            let rgba_pixel = foreground.get_pixel(x, y);
+    let mut rng = rand::rng();
 
-            LumaA([0, rgba_pixel[3]])
-        }
-    );
+    let mask: ImageBuffer<LumaA<u16>, Vec<u16>> = ImageBuffer::from_fn(width, height, |x, y| {
+        let rgba_pixel = foreground.get_pixel(x, y);
+        let alpha_16 = rgba_pixel[3] as u16 * 257;
 
-    let drop_shadow = add_blur(DynamicImage::ImageLumaA8(mask), 120).to_rgba8();
+        LumaA([0u16, alpha_16])
+    });
+
+    let drop_shadow = add_blur(DynamicImage::ImageLumaA16(mask), 120).to_luma_alpha16();
+
+    let dithered_drop_shadow =
+        ImageBuffer::from_fn(drop_shadow.width(), drop_shadow.height(), |x, y| {
+            let pixel = drop_shadow.get_pixel(x, y);
+
+            let alpha = (pixel[1] as i32 / 257) as i32;
+
+            let dithered = (alpha + rng.random_range(-3..3)).clamp(0, 255) as u8;
+
+            LumaA([0u8, dithered])
+        });
+
+    let drop_shadow = DynamicImage::ImageLumaA8(dithered_drop_shadow).to_rgba8();
 
     drop_shadow.save(DROP_SHADOW_PATH).unwrap();
 
@@ -234,12 +243,13 @@ fn decode_jpeg(path: &str) -> RgbImage {
 fn generate_foreground(
     artwork: RgbImage,
     artwork_resize: u32,
-    spotify_code: Option<ImageBuffer>,
+    spotify_code: Option<PythonImageBuffer>,
     display_geometry: [u32; 2],
     available_geometry: [u32; 4],
 ) -> RgbaImage {
     // create transparent base
-    let mut base = RgbaImage::from_pixel(display_geometry[0], display_geometry[1], Rgba([0, 0, 0, 0]));
+    let mut base =
+        RgbaImage::from_pixel(display_geometry[0], display_geometry[1], Rgba([0, 0, 0, 0]));
 
     let artwork_resized = DynamicImage::ImageRgb8(resize::fast_resize(
         &artwork,
@@ -251,12 +261,8 @@ fn generate_foreground(
     let spacing = display_geometry[1] / 100;
 
     let foreground_height = match spotify_code.as_ref() {
-        Some(buffer) => {
-            artwork_resize + spacing + buffer.size[1]
-        }
-        None => {
-            artwork_resize
-        },
+        Some(buffer) => artwork_resize + spacing + buffer.size[1],
+        None => artwork_resize,
     };
 
     let x: i64 = (i64::from(available_geometry[0]) - i64::from(artwork_resized.width())) / 2
@@ -274,49 +280,3 @@ fn generate_foreground(
 
     base
 }
-
-// fn paste_images(
-//     background: &RgbImage,
-//     foreground: Option<RgbImage>,
-//     display_geometry: [u32; 2],
-//     available_geometry: [u32; 4],
-//     drop_shadow: bool,
-// ) -> RgbImage {
-//     let mut base = RgbaImage::new(display_geometry[0], display_geometry[1]);
-
-//     // Background Paste
-//     let x = (display_geometry[0] as i64 - background.width() as i64) / 2;
-//     let y = (display_geometry[1] as i64 - background.height() as i64) / 2;
-
-//     let background = DynamicImage::ImageRgb8(background.clone()).into_rgba8();
-
-//     imageops::overlay(&mut base, &background, x, y);
-
-//     // Foreground paste
-//     if let Some(foreground) = foreground {
-//         if drop_shadow {
-//             match ImageReader::open(DROP_SHADOW_PATH) {
-//                 Ok(drop_shadow_data) => {
-//                     let drop_shadow_image = drop_shadow_data.decode().unwrap();
-//                     imageops::overlay(&mut base, &drop_shadow_image, 0, 0);
-//                 }
-//                 Err(_e) => {
-//                     generate_save_drop_shadow(foreground.width(), display_geometry, available_geometry)
-//                         .save(DROP_SHADOW_PATH)
-//                         .unwrap();
-//                 }
-//             }
-//         }
-
-//         let foreground = DynamicImage::ImageRgb8(foreground).into_rgba8();
-
-//         let x = (i64::from(available_geometry[0]) - i64::from(foreground.width())) / 2
-//             + i64::from(available_geometry[2]);
-//         let y = (i64::from(available_geometry[1]) - i64::from(foreground.height())) / 2
-//             + i64::from(available_geometry[3]);
-
-//         imageops::overlay(&mut base, &foreground, x, y)
-//     }
-
-//     DynamicImage::ImageRgba8(base).into_rgb8()
-// }
