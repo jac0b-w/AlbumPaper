@@ -10,16 +10,17 @@ zune-jpeg = "0.5.15"
 zune-core = "0.5.1"
 image = "0.25.10"
 rayon = "1.5.1"
-fastblur = { git = "https://github.com/fschutt/fastblur" }
 libblur = {version = "0.23.3", features = ["image"]}
 ordered-float = { version = "5.3.0", default-features = false }
 fast_image_resize = "1.0.0"
 rand = "0.9.1"
 
-
 # Colored noise
 colorgrad = "0.8.0"
 noise = "0.9.0"
+
+[dev-dependencies]
+criterion = "0.8.2"
 
 [lib]
 name = "albumpaper_rs"
@@ -33,3 +34,10 @@ features = ["extension-module"]
 inherits = "release"
 debug = true
 strip = false
+
+[profile.bench]
+debug = true
+
+[[bench]]
+name = "benchmark"
+harness = false
