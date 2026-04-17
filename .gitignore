@@ -1,7 +1,7 @@
 /.vscode
 dist/
 build/
-*-dev.*
+*-dev*
 test*
 *pyc
 .*

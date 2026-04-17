@@ -10,35 +10,44 @@ class AppPaths:
     GENERATED_WALLPAPER = "./cache/images/generated_wallpaper.png"
     DROP_SHADOW = "./cache/images/drop_shadow.png"
 
-    DEV_SERVICES_SECRETS = "./config/secrets/services-dev.ini"
-    SERVICES_SECRETS = "./config/secrets/services.ini"
+    CONFIG_DIR = "./config/"
+    DEV_CONFIG_DIR = "./config-dev/"
 
-    GLOBAL_SETTINGS = "./config/global.ini"
-    GLOBAL_SETTINGS_SPEC = "./config/spec/global.ini"
+    SECRETS = "secrets.ini"
+    GLOBAL = "global.ini"
+    BACKGROUND = "background.ini"
 
-    BACKGROUND_SETTINGS = "./config/background.ini"
-    BACKGROUND_SETTINGS_SPEC = "./config/spec/background.ini"
+    @classmethod
+    def get_config(cls, file: str) -> str:
+        prefix = cls.CONFIG_DIR
+        if Path(cls.DEV_CONFIG_DIR).is_dir():
+            prefix = cls.DEV_CONFIG_DIR
+
+        return prefix + file
+
+    @classmethod
+    def get_spec(cls, file: str) -> str:
+        prefix = cls.CONFIG_DIR
+        if Path(cls.DEV_CONFIG_DIR).is_dir():
+            prefix = cls.DEV_CONFIG_DIR
+
+        return prefix + "spec/" + file
 
 
 class ConfigManager:
-    dev_services_file = Path(AppPaths.DEV_SERVICES_SECRETS)
-    if dev_services_file.is_file():
-        print("Using developer API keys")
-        services = configobj.ConfigObj(AppPaths.DEV_SERVICES_SECRETS)
-    else:
-        services = configobj.ConfigObj(AppPaths.SERVICES_SECRETS)
+    services = configobj.ConfigObj(AppPaths.get_config(AppPaths.SECRETS))
 
     _validator = configobj.validate.Validator()
 
     settings = configobj.ConfigObj(
-        AppPaths.GLOBAL_SETTINGS,
-        configspec=AppPaths.GLOBAL_SETTINGS_SPEC,
+        AppPaths.get_config(AppPaths.GLOBAL),
+        configspec=AppPaths.get_spec(AppPaths.GLOBAL),
     )
     settings.validate(_validator)
 
     background = configobj.ConfigObj(
-        AppPaths.BACKGROUND_SETTINGS,
-        configspec=AppPaths.BACKGROUND_SETTINGS_SPEC,
+        AppPaths.get_config(AppPaths.BACKGROUND),
+        configspec=AppPaths.get_spec(AppPaths.BACKGROUND),
     )
     background.validate(_validator)
 
