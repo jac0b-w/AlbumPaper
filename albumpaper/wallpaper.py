@@ -273,7 +273,7 @@ class GenerateWallpaper:
             structs.GenerationConfig(
                 artwork=structs.PythonImageBuffer(image),
                 background=structs.BackgroundConfig(
-                    background_type=BackgroundType.RADIAL_GRADIENT,
+                    background_type=BackgroundType.COLORED_NOISE,
                     blur_radius=blur,
                     color1=color1,
                     color2=color2,
