@@ -1,6 +1,9 @@
 #![allow(clippy::manual_map)]
 
-use image::{DynamicImage, GrayAlphaImage, ImageBuffer, ImageReader, LumaA, RgbImage, Rgba, RgbaImage, imageops};
+use image::{
+    DynamicImage, GrayAlphaImage, ImageBuffer, ImageReader, LumaA, RgbImage, Rgba, RgbaImage,
+    imageops,
+};
 use libblur::{self, GaussianBlurParams};
 use pyo3::prelude::*;
 use rand::Rng;
@@ -11,9 +14,9 @@ use std::{
 };
 use zune_jpeg::JpegDecoder;
 
-mod gradient;
-mod noise;
-mod resize;
+pub mod gradient;
+pub mod noise;
+pub mod resize;
 
 const DEFAULT_WALLPAPER_PATH: &str = "cache/images/default_wallpaper.jpg";
 const GENERATED_WALLPAPER_PATH: &str = "cache/images/generated_wallpaper.png";
@@ -154,7 +157,7 @@ pub fn generate_wallpaper(config: GenerationConfig) -> RgbImage {
                 let drop_shadow = generate_drop_shadow(&foreground);
                 drop_shadow.save(DROP_SHADOW_PATH).unwrap();
                 drop_shadow
-            },
+            }
         };
         imageops::overlay(&mut base, &drop_shadow_image, 0, 0);
     }
@@ -196,7 +199,6 @@ fn add_blur(image: DynamicImage, blur_radius: u32) -> DynamicImage {
     )
     .unwrap()
 }
-
 
 pub fn generate_drop_shadow(foreground: &RgbaImage) -> RgbaImage {
     let (width, height) = foreground.dimensions();

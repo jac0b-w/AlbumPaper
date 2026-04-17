@@ -19,7 +19,11 @@ Returns an `RgbImage` of dimentions `geometry` with a linear gradient between
 * `to_color` - A list of rgb values for the right color of linear gradient
 
 */
-pub fn linear(geometry: [u32; 2], from_color: [u8; 3], to_color: [u8; 3]) -> RgbImage {
+pub fn linear(
+    geometry: [u32; 2],
+    from_color: [u8; 3],
+    to_color: [u8; 3],
+) -> RgbImage {
     let [width, height] = geometry;
 
     let mut image = RgbImage::new(width, height);
@@ -35,13 +39,15 @@ pub fn linear(geometry: [u32; 2], from_color: [u8; 3], to_color: [u8; 3]) -> Rgb
         .build::<colorgrad::LinearGradient>()
         .unwrap();
 
+    let chunk_size = 10 * width;
+
     image
-        .par_chunks_exact_mut(3 * width as usize)
+        .par_chunks_exact_mut(3 * chunk_size as usize)
         .enumerate()
         .for_each(|(y, row)| {
             let mut rng = rand::rng();
 
-            for x in 0..width {
+            for x in 0..chunk_size {
                 let t = x as f32 + y as f32;
 
                 let base = grad.at(t).to_array();
