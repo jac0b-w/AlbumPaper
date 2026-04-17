@@ -13,3 +13,5 @@ cache/
 *.spec
 *.log*
 /dev
+flamegraph*
+/benches
