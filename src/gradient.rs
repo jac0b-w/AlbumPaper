@@ -39,15 +39,13 @@ pub fn linear(
         .build::<colorgrad::LinearGradient>()
         .unwrap();
 
-    let chunk_size = 10 * width;
-
     image
-        .par_chunks_exact_mut(3 * chunk_size as usize)
+        .par_chunks_exact_mut(3 * width as usize)
         .enumerate()
         .for_each(|(y, row)| {
             let mut rng = rand::rng();
 
-            for x in 0..chunk_size {
+            for x in 0..width {
                 let t = x as f32 + y as f32;
 
                 let base = grad.at(t).to_array();
