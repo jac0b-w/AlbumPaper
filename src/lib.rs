@@ -120,6 +120,7 @@ pub fn generate_wallpaper(config: GenerationConfig) -> RgbImage {
         ),
         "defaultwallpaper" => {
             let default_wallpaper = decode_jpeg(DEFAULT_WALLPAPER_PATH);
+            resize_default_wallpaper(&default_wallpaper, config.display_geometry);
             image_background(
                 default_wallpaper,
                 config.display_geometry,
@@ -241,6 +242,14 @@ fn decode_jpeg(path: &str) -> RgbImage {
     let pixels = decoder.decode().unwrap();
 
     RgbImage::from_raw(image_info.width.into(), image_info.height.into(), pixels).unwrap()
+}
+
+// Easier to just replace cache/images/defefault_wallpaper ourselves for consitency with generated wallpapers
+fn resize_default_wallpaper(default_wallpaper: &RgbImage, display_geometry: [u32; 2]) {
+    if default_wallpaper.dimensions() != display_geometry.into() {
+        let resized_wallpaper = resize::fast_resize(default_wallpaper, display_geometry[0], display_geometry[1]);
+        resized_wallpaper.save(DEFAULT_WALLPAPER_PATH).unwrap();
+    };
 }
 
 fn generate_foreground(
