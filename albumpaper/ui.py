@@ -457,7 +457,7 @@ class BackgroundTab(QtWidgets.QWidget):
             QtWidgets.QSpinBox(),
         )
 
-        min_colors, max_colors = 3, 10
+        min_colors, max_colors = 2, 10
 
         colored_noise_groupbox.slider.valueChanged.connect(
             colored_noise_groupbox.spin_box.setValue,
