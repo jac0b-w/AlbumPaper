@@ -39,7 +39,6 @@ class GenerateWallpaper:
     def __init__(self, app: QtWidgets.QApplication) -> None:
         self.artwork_resize = ConfigManager.settings["foreground"]["size"]
 
-        self.blur_enabled = ConfigManager.settings["background"]["blur_enabled"]
         self.blur_strength = ConfigManager.settings["background"]["blur_strength"]
 
         self.foreground_enabled = ConfigManager.settings["foreground"]["enabled"]
@@ -184,38 +183,47 @@ class GenerateWallpaper:
 
     @timer
     def solidcolor_background(self, track: Track) -> None:
+        background_type = BackgroundType.SOLID_COLOR
+
         return structs.BackgroundConfig(
-            background_type=BackgroundType.SOLID_COLOR,
+            background_type=background_type,
             color1=track.dominant_colors[0],
         )
 
     @timer
     def lineargradient_background(self, track: Track) -> None:
+        background_type = BackgroundType.LINEAR_GRADIENT
+
         from_color, to_color = self.gradient_colors(track.artwork)
-        background_config=  structs.BackgroundConfig(
-            background_type=BackgroundType.LINEAR_GRADIENT,
+        return structs.BackgroundConfig(
+            background_type=background_type,
             color1=from_color,
             color2=to_color,
         )
-        print(background_config)
-        return background_config
 
     @timer
     def radialgradient_background(self, track: Track) -> None:
+        background_type = BackgroundType.RADIAL_GRADIENT
+
         from_color, to_color = self.gradient_colors(track.artwork)
         return structs.BackgroundConfig(
-            background_type=BackgroundType.RADIAL_GRADIENT,
+            background_type=background_type,
             color1=from_color,
             color2=to_color,
         )
 
     @timer
     def colorednoise_background(self, track: Track) -> None:
-        blur_radius=ConfigManager.background[BackgroundType.COLORED_NOISE]["blur"]
-        no_colors = ConfigManager.background[BackgroundType.COLORED_NOISE]["no_colors"]
+        background_type = BackgroundType.COLORED_NOISE
+
+        blur_radius=None
+        if ConfigManager.background[background_type]["blur"]:
+            blur_radius = self.blur_strength
+        no_colors = ConfigManager.background[background_type]["no_colors"]
         color1, color2 = self.gradient_colors(track.artwork)
+
         return structs.BackgroundConfig(
-            background_type=BackgroundType.COLORED_NOISE,
+            background_type=background_type,
             blur_radius=blur_radius,
             color1=color1,
             color2=color2,
@@ -224,17 +232,27 @@ class GenerateWallpaper:
 
     @timer
     def albumart_background(self, _track: Track) -> None:
-        blur_radius=ConfigManager.background[BackgroundType.ALBUM_ART]["blur"]
+        background_type = BackgroundType.ALBUM_ART
+
+        blur_radius=None
+        if ConfigManager.background[background_type]["blur"]:
+            blur_radius = self.blur_strength
+
         return structs.BackgroundConfig(
-            background_type=BackgroundType.ALBUM_ART,
+            background_type=background_type,
             blur_radius=blur_radius,
         )
 
     @timer
     def defaultwallpaper_background(self, _track: Track) -> None:
-        blur_radius=ConfigManager.background[BackgroundType.DEFAULT_WALLPAPER]["blur"]
+        background_type = BackgroundType.DEFAULT_WALLPAPER
+
+        blur_radius=None
+        if ConfigManager.background[background_type]["blur"]:
+            blur_radius = self.blur_strength
+
         return structs.BackgroundConfig(
-            background_type=BackgroundType.DEFAULT_WALLPAPER,
+            background_type=background_type,
             blur_radius=blur_radius,
         )
 
