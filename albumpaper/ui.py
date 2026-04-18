@@ -376,7 +376,7 @@ class BackgroundTab(QtWidgets.QWidget):
 
         blur_group.slider = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         blur_group.spin_box = ConfigManager.register(
-            ("settings", "background", "blur_strength"),
+            ("background", "global", "blur_strength"),
             QtWidgets.QSpinBox(),
         )
 
