@@ -39,7 +39,7 @@ class GenerateWallpaper:
     def __init__(self, app: QtWidgets.QApplication) -> None:
         self.artwork_resize = ConfigManager.settings["foreground"]["size"]
 
-        self.blur_strength = ConfigManager.settings["background"]["blur_strength"]
+        self.blur_strength = ConfigManager.background["global"]["blur_strength"]
 
         self.foreground_enabled = ConfigManager.settings["foreground"]["enabled"]
         self.spotify_code = ConfigManager.settings["foreground"]["spotify_code"]
