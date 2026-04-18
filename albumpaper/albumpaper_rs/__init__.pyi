@@ -1,0 +1,3 @@
+import structs
+
+def generate_save_wallpaper(config: structs.GenerationConfig) -> None: ...

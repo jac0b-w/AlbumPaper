@@ -15,3 +15,5 @@ cache/
 /dev
 flamegraph*
 /benches
+*.pyd
+*.pdb
