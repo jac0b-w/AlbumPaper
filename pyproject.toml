@@ -2,32 +2,30 @@
 name = "albumpaper"
 version = "4.1.0"
 description = "An app for Windows that will change your desktop wallpaper to the album art of the song you are listening to."
-authors = [
-    {name = "jac0b_w"}
-]
-license = "GPL-3.0"
-readme = "README.md"
+authors = [{ name = "jac0b_w" }]
 requires-python = ">=3.14"
+readme = "README.md"
+license = "GPL-3.0"
+dependencies = [
+    "pyside6>=6.11.0,<7.0.0",
+    "spotipy>=2.26.0,<3.0.0",
+    "pillow>=12.1.1,<13.0.0",
+    "configobj>=5.0.9,<6.0.0",
+    "numpy>=2.4.4,<3.0.0",
+    "scipy>=1.17.1,<2.0.0",
+    "scikit-learn>=1.8.0,<2.0.0",
+    "dynaconf>=3.2.13,<4.0.0",
+    "packaging>=26.0.0,<27.0.0",
+    "joblib>=1.5.3,<2",
+    "xxhash>=3.0.0,<4.0.0",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.14,<3.15"
-pyside6 = ">=6.11.0,<7.0.0"
-spotipy = ">=2.26.0,<3.0.0"
-pillow = ">=12.1.1,<13.0.0"
-configobj = ">=5.0.9,<6.0.0"
-numpy = ">=2.4.4,<3.0.0"
-scipy = ">=1.17.1,<2.0.0"
-scikit-learn = ">=1.8.0,<2.0.0"
-dynaconf = ">=3.2.13,<4.0.0"
-packaging = ">=26.0.0,<27.0.0"
-joblib = "^1.5.3"
-xxhash = ">=3.0.0,<4.0.0"
+[dependency-groups]
+dev = ["maturin>=1.0,<2.0"]
 
-[tool.poetry.group.dev.dependencies]
-maturin = ">=1.0,<2.0"
-
-[tool.poetry]
-package-mode = false
+[tool.uv]
+package = false
+default-groups = "all"
 
 [build-system]
 requires = ["maturin>=1.0,<2.0"]
