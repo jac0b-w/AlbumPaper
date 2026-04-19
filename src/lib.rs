@@ -48,12 +48,11 @@ pub struct AppPaths {
 
 impl AppPaths {
     fn from(python_root: String) -> Self {
-        let root = PathBuf::from(python_root.replace("\\", "/"));
-        println!("{:?} root", root);
+        let root = PathBuf::from(python_root);
         AppPaths {
-            default_wallpaper: root.join("cache/images/default_wallpaper.jpg"),
-            generated_wallpaper: root.join("cache/images/generated_wallpaper.png"),
-            drop_shadow: root.join("cache/images/drop_shadow.png"),
+            default_wallpaper: root.join("cache\\images\\default_wallpaper.jpg"),
+            generated_wallpaper: root.join("cache\\images\\generated_wallpaper.png"),
+            drop_shadow: root.join("cache\\images\\drop_shadow.png"),
         }
     }
 }
