@@ -12,8 +12,7 @@ from wallpaper import BackgroundType, WindowsWallpaper
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-VERSION = Version("v4.2.0")
-
+VERSION = Version("5.0b1")
 
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(
@@ -29,7 +28,10 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.signal = signal
         self.pause_state_manager = pause_state_manager
 
-        if QtWidgets.QApplication.styleHints().colorScheme() == QtCore.Qt.ColorScheme.Dark:
+        if (
+            QtWidgets.QApplication.styleHints().colorScheme()
+            == QtCore.Qt.ColorScheme.Dark
+        ):
             self.icon_color = "white"
         else:
             self.icon_color = "black"
@@ -50,18 +52,17 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.settings_window = SettingsWindow(self)
         ConfigManager.init_widgets()
 
-        latest_version = self.latest_stable_update()
-
         self.messageClicked.connect(
             self.open_link("https://github.com/jac0b-w/AlbumPaper/releases"),
         )
 
-        if latest_version > VERSION:
+        suggested_update = self.suggest_update()
+        if suggested_update is not None:
             self.context_menu.addSeparator()
 
             release_item = self.context_menu.addAction(
                 QtGui.QIcon(f"assets/icons/{self.icon_color}/update.png"),
-                f"Update avaliable (v{latest_version})",
+                f"Update avaliable (v{suggested_update})",
             )
             release_item.triggered.connect(
                 self.open_link(
@@ -69,7 +70,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
                 ),
             )
 
-            self.showMessage("New update", f"Update v{latest_version} available")
+            self.showMessage("New update", f"Update v{suggested_update} available")
 
         self.context_menu.addSeparator()
 
@@ -140,25 +141,27 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
         return exit_function
 
-    def latest_stable_update(self) -> Version:
+    def suggest_update(self) -> Version | None:
         if not ConfigManager.settings["updates"]["check_for_updates"]:
-            return VERSION
+            return None
 
         try:
             response = requests.get(
                 "https://api.github.com/repos/jac0b-w/AlbumPaper/releases/latest",
                 timeout=1,
             )
-            latest_version: str = response.json()["tag_name"]
+            latest_version: Version = Version(response.json()["tag_name"])
         except:  # noqa: E722
-            return VERSION
-        if any(substring in latest_version for substring in ["alpha", "beta"]):
-            return VERSION
+            return None
 
-        if Version(latest_version) > VERSION:
-            return Version(latest_version)
+        # Only suggest updating to a pre-releases if the currently installed
+        # version is also a pre-release
+        if latest_version > VERSION and (
+            not latest_version.is_prerelease or VERSION.is_prerelease
+        ):
+            return latest_version
 
-        return VERSION
+        return None
 
 
 class SettingsWindow(QtWidgets.QWidget):
@@ -168,7 +171,10 @@ class SettingsWindow(QtWidgets.QWidget):
         self.setWindowTitle("Settings")
         # self.setFixedSize(570, 0)
 
-        if QtWidgets.QApplication.styleHints().colorScheme() == QtCore.Qt.ColorScheme.Dark:
+        if (
+            QtWidgets.QApplication.styleHints().colorScheme()
+            == QtCore.Qt.ColorScheme.Dark
+        ):
             settings_icon_path = "assets/icons/white/settings.png"
         else:
             settings_icon_path = "assets/icons/black/settings.png"
