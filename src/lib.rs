@@ -8,6 +8,7 @@ use libblur::{self, GaussianBlurParams};
 use pyo3::prelude::*;
 use rand::Rng;
 use std::io::BufReader;
+use std::path::PathBuf;
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
@@ -17,10 +18,6 @@ use zune_jpeg::JpegDecoder;
 pub mod gradient;
 pub mod noise;
 pub mod resize;
-
-const DEFAULT_WALLPAPER_PATH: &str = "cache/images/default_wallpaper.jpg";
-const GENERATED_WALLPAPER_PATH: &str = "cache/images/generated_wallpaper.png";
-const DROP_SHADOW_PATH: &str = "cache/images/drop_shadow.png";
 
 #[pymodule]
 fn albumpaper_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -42,8 +39,28 @@ impl PythonImageBuffer {
     }
 }
 
+#[derive(Debug)]
+pub struct AppPaths {
+    default_wallpaper: PathBuf,
+    generated_wallpaper: PathBuf,
+    drop_shadow: PathBuf,
+}
+
+impl AppPaths {
+    fn from(python_root: String) -> Self {
+        let root = PathBuf::from(python_root.replace("\\", "/"));
+        println!("{:?} root", root);
+        AppPaths {
+            default_wallpaper: root.join("cache/images/default_wallpaper.jpg"),
+            generated_wallpaper: root.join("cache/images/generated_wallpaper.png"),
+            drop_shadow: root.join("cache/images/drop_shadow.png"),
+        }
+    }
+}
+
 #[derive(FromPyObject, Hash, PartialEq, Eq, Clone)]
 pub struct GenerationConfig {
+    pub python_root: String,
     pub artwork: PythonImageBuffer,
     pub background: BackgroundConfig,
     pub foreground: ForegroundConfig,
@@ -70,12 +87,13 @@ pub struct BackgroundConfig {
 
 #[pyfunction]
 pub fn generate_save_wallpaper(config: GenerationConfig) {
-    let image = generate_wallpaper(config);
-    image.save(GENERATED_WALLPAPER_PATH).unwrap();
+    let app_paths = AppPaths::from(config.python_root.clone());
+    let image = generate_wallpaper(config, &app_paths);
+    image.save(app_paths.generated_wallpaper).unwrap();
 }
 
 // In seperate function for possible caching
-pub fn generate_wallpaper(config: GenerationConfig) -> RgbImage {
+pub fn generate_wallpaper(config: GenerationConfig, app_paths: &AppPaths) -> RgbImage {
     let artwork = config.artwork.to_image();
 
     let background = match config.background.background_type.as_str() {
@@ -119,8 +137,8 @@ pub fn generate_wallpaper(config: GenerationConfig) -> RgbImage {
             config.background.blur_radius,
         ),
         "defaultwallpaper" => {
-            let default_wallpaper = decode_jpeg(DEFAULT_WALLPAPER_PATH);
-            resize_default_wallpaper(&default_wallpaper, config.display_geometry);
+            let default_wallpaper = decode_jpeg(app_paths.default_wallpaper.clone());
+            resize_default_wallpaper(&default_wallpaper, config.display_geometry, app_paths);
             image_background(
                 default_wallpaper,
                 config.display_geometry,
@@ -152,11 +170,11 @@ pub fn generate_wallpaper(config: GenerationConfig) -> RgbImage {
     );
 
     if config.foreground.drop_shadow {
-        let drop_shadow_image = match ImageReader::open(DROP_SHADOW_PATH) {
+        let drop_shadow_image = match ImageReader::open(app_paths.drop_shadow.clone()) {
             Ok(drop_shadow_data) => drop_shadow_data.decode().unwrap().to_rgba8(),
             Err(_e) => {
                 let drop_shadow = generate_drop_shadow(&foreground);
-                drop_shadow.save(DROP_SHADOW_PATH).unwrap();
+                drop_shadow.save(app_paths.drop_shadow.clone()).unwrap();
                 drop_shadow
             }
         };
@@ -232,7 +250,7 @@ pub fn generate_drop_shadow(foreground: &RgbaImage) -> RgbaImage {
     drop_shadow
 }
 
-fn decode_jpeg(path: &str) -> RgbImage {
+fn decode_jpeg(path: PathBuf) -> RgbImage {
     let image = BufReader::new(std::fs::File::open(path).unwrap());
     let mut decoder = JpegDecoder::new(image);
 
@@ -245,10 +263,17 @@ fn decode_jpeg(path: &str) -> RgbImage {
 }
 
 // Easier to just replace cache/images/defefault_wallpaper ourselves for consitency with generated wallpapers
-fn resize_default_wallpaper(default_wallpaper: &RgbImage, display_geometry: [u32; 2]) {
+fn resize_default_wallpaper(
+    default_wallpaper: &RgbImage,
+    display_geometry: [u32; 2],
+    app_paths: &AppPaths,
+) {
     if default_wallpaper.dimensions() != display_geometry.into() {
-        let resized_wallpaper = resize::fast_resize(default_wallpaper, display_geometry[0], display_geometry[1]);
-        resized_wallpaper.save(DEFAULT_WALLPAPER_PATH).unwrap();
+        let resized_wallpaper =
+            resize::fast_resize(default_wallpaper, display_geometry[0], display_geometry[1]);
+        resized_wallpaper
+            .save(app_paths.default_wallpaper.clone())
+            .unwrap();
     };
 }
 

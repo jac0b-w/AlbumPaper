@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 VERSION = Version("5.0b1")
 
+
 class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
     def __init__(
         self,
@@ -37,7 +38,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
             self.icon_color = "black"
 
         default_wallpaper_item = self.context_menu.addAction(
-            QtGui.QIcon(f"assets/icons/{self.icon_color}/wallpaper.png"),
+            self.get_icon("wallpaper.png"),
             "Set Default Wallpaper",
         )
         default_wallpaper_item.triggered.connect(self.set_default_wallpaper)
@@ -45,7 +46,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.context_menu.addSeparator()
 
         settings_item = self.context_menu.addAction(
-            QtGui.QIcon(f"assets/icons/{self.icon_color}/settings.png"),
+            self.get_icon("settings.png"),
             "Settings",
         )
         settings_item.triggered.connect(self.settings)
@@ -61,7 +62,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
             self.context_menu.addSeparator()
 
             release_item = self.context_menu.addAction(
-                QtGui.QIcon(f"assets/icons/{self.icon_color}/update.png"),
+                self.get_icon("update.png"),
                 f"Update avaliable (v{suggested_update})",
             )
             release_item.triggered.connect(
@@ -75,25 +76,30 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.context_menu.addSeparator()
 
         self.pause_item = self.context_menu.addAction(
-            QtGui.QIcon(f"assets/icons/{self.icon_color}/pause.png"),
+            self.get_icon("pause.png"),
             "Pause",
         )
         self.pause_item.triggered.connect(self.toggle_pause)
 
         restart_item = self.context_menu.addAction(
-            QtGui.QIcon(f"assets/icons/{self.icon_color}/restart.png"),
+            self.get_icon("restart.png"),
             "Restart",
         )
         restart_item.triggered.connect(self.exit(1))
 
         exit_item = self.context_menu.addAction(
-            QtGui.QIcon(f"assets/icons/{self.icon_color}/close.png"),
+            self.get_icon("close.png"),
             "Quit",
         )
         exit_item.triggered.connect(self.exit(0))
 
         self.setContextMenu(self.context_menu)
         self.activated.connect(self.clicked)
+
+    def get_icon(self, name: str) -> QtGui.QIcon:
+        assets_path: Path = AppPaths.PYTHON_ROOT / "assets" / "icons" / self.icon_color
+        abs_path: Path = (assets_path / name).absolute()
+        return QtGui.QIcon(str(abs_path))
 
     def clicked(self, reason: QtWidgets.QSystemTrayIcon.ActivationReason) -> None:
         # self.Trigger is left click
@@ -119,13 +125,17 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
             },
         }[state]
 
+        icon_path = AppPaths.PYTHON_ROOT / "assets" / "icons"
+
         self.pause_item.setText(options["text"])
         self.pause_item.setIcon(
-            QtGui.QIcon(f"assets/icons/{self.icon_color}/{options['icon']}.png"),
+            QtGui.QIcon(str((icon_path / f"{options['icon']}.png").absolute())),
         )
         self.pause_item.setEnabled(options["enabled"])
 
-        self.setIcon(QtGui.QIcon(f"assets/icons/{state}.png"))
+        self.setIcon(
+            QtGui.QIcon(str((icon_path / f"{state}.png").absolute())),
+        )
 
     def set_default_wallpaper(self) -> None:
         WindowsWallpaper.cache_current()
@@ -175,9 +185,13 @@ class SettingsWindow(QtWidgets.QWidget):
             QtWidgets.QApplication.styleHints().colorScheme()
             == QtCore.Qt.ColorScheme.Dark
         ):
-            settings_icon_path = "assets/icons/white/settings.png"
+            settings_icon_path = str((
+                AppPaths.PYTHON_ROOT / "assets" / "icons" / "white" / "settings.png"
+            ).absolute())
         else:
-            settings_icon_path = "assets/icons/black/settings.png"
+            settings_icon_path = str((
+                AppPaths.PYTHON_ROOT / "assets" / "icons" / "black" / "settings.png"
+            ).absolute())
 
         if Path(settings_icon_path).exists():
             self.my_icon = QtGui.QIcon(settings_icon_path)

@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 import spotipy
 import xxhash
-from configuration import ConfigManager
+from configuration import AppPaths, ConfigManager
 from PySide6 import QtWidgets
 
 
@@ -23,12 +23,15 @@ class SpotifyAuth:
             (client_id + client_secret).encode("UTF-8"),
         ).hexdigest()
 
+        spotipy_cache_path = (
+            AppPaths.PYTHON_ROOT / "cache" / f".spotipy-cache-{hashed_keys}"
+        )
         self.sp_oauth = spotipy.SpotifyOAuth(
             client_id,
             client_secret,
             redirect_uri=ConfigManager.settings["service"]["redirect_uri"],
             scope="user-read-currently-playing user-read-playback-state",
-            cache_path=f"./cache/.spotipy-cache-{hashed_keys}",
+            cache_path=spotipy_cache_path,
             show_dialog=True,
         )
 

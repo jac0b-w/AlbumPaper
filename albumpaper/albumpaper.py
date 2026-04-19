@@ -431,8 +431,15 @@ if __name__ in "__main__":
 
             pause_state_manager = PauseStateManager(pause_state_signals)
 
+            enabled_icon = QtGui.QIcon(
+                str(
+                    (
+                        AppPaths.PYTHON_ROOT / "assets" / "icons" / "enabled.png"
+                    ).absolute(),
+                ),
+            )
             tray_icon = SystemTrayIcon(
-                icon=QtGui.QIcon("assets/icons/enabled.png"),
+                icon=enabled_icon,
                 parent=widget,
                 signal=pause_state_signals,
                 pause_state_manager=pause_state_manager,
@@ -448,7 +455,7 @@ if __name__ in "__main__":
             tray_icon.show()
 
             Path(AppPaths.DROP_SHADOW).unlink(missing_ok=True)
-            cache_images_dir = Path("./cache/images")
+            cache_images_dir = AppPaths.PYTHON_ROOT / "cache" / "images"
             if not cache_images_dir.exists():
                 cache_images_dir.mkdir(parents=True, exist_ok=True)
             if not Path(AppPaths.DEFAULT_WALLPAPER).exists():

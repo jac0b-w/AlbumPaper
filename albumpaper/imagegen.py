@@ -3,7 +3,7 @@ import numpy as np
 import scipy
 import sklearn
 import xxhash
-from configuration import ConfigManager
+from configuration import AppPaths, ConfigManager
 from misc import Color  # noqa: TC002
 from PIL import Image  # noqa: TC002
 
@@ -42,7 +42,7 @@ def dominant_colors(image: Image.Image) -> list[Color]:
     return _dominant_colors_cached(image, image_hash)
 
 
-mem = joblib.Memory("./cache/dominant_colors", verbose=0)
+mem = joblib.Memory(AppPaths.PYTHON_ROOT / "cache" / "dominant_colors", verbose=0)
 
 
 @mem.cache(ignore=["image"])

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import joblib
 import requests
-from configuration import ConfigManager
+from configuration import AppPaths, ConfigManager
 from PIL import Image
 
 if TYPE_CHECKING:
@@ -29,12 +29,6 @@ def timer[P, R](func: Callable[P, R]) -> Callable[P, R]:
     return wrapper
 
 
-def debug(*values: *Any) -> None:
-    frame = inspect.stack()[1]
-    string = " ".join([f"{value=}" for value in values])
-    print(f"{frame.filename}:{frame.lineno} ".replace("\\", "/") + string)
-
-
 @timer
 def download_image(url: str) -> Image.Image | None:
     try:
@@ -46,13 +40,12 @@ def download_image(url: str) -> Image.Image | None:
 
 
 # Factored out into a separate function to only cache compressed jpeg
-mem = joblib.Memory("./cache/jpeg", verbose=0)
+mem = joblib.Memory(AppPaths.PYTHON_ROOT / "cache" / "jpeg", verbose=0)
 
 
 @timer
 @mem.cache
 def _download_image(url: str) -> bytes:
-    debug(url)
     response_content = requests.get(url, timeout=30).content
     mem.reduce_size(bytes_limit=f"{int(ConfigManager.settings['cache']['size']) / 2}M")
     return response_content

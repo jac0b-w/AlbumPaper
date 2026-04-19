@@ -6,32 +6,38 @@ from PySide6 import QtWidgets
 
 
 class AppPaths:
-    DEFAULT_WALLPAPER = "./cache/images/default_wallpaper.jpg"
-    GENERATED_WALLPAPER = "./cache/images/generated_wallpaper.png"
-    DROP_SHADOW = "./cache/images/drop_shadow.png"
+    PYTHON_ROOT = Path(__file__).resolve().parent
 
-    CONFIG_DIR = "./config/"
-    DEV_CONFIG_DIR = "./config-dev/"
+    DEFAULT_WALLPAPER = PYTHON_ROOT / "./cache/images/default_wallpaper.jpg"
+    GENERATED_WALLPAPER = PYTHON_ROOT / "./cache/images/generated_wallpaper.png"
+    DROP_SHADOW = PYTHON_ROOT / "./cache/images/drop_shadow.png"
+
+    CONFIG_DIR = PYTHON_ROOT / "./config/"
+    DEV_CONFIG_DIR = PYTHON_ROOT / "./config-dev/"
 
     SECRETS = "secrets.ini"
     GLOBAL = "global.ini"
     BACKGROUND = "background.ini"
 
     @classmethod
-    def get_config(cls, file: str) -> str:
-        prefix = cls.CONFIG_DIR
-        if Path(cls.DEV_CONFIG_DIR).is_dir():
-            prefix = cls.DEV_CONFIG_DIR
+    def get_config(cls, file: Path | str) -> str:
+        dev_dir = cls.PYTHON_ROOT / cls.DEV_CONFIG_DIR
+        if dev_dir.is_dir():
+            path = dev_dir / file
+        else:
+            path = cls.PYTHON_ROOT / cls.CONFIG_DIR / file
 
-        return prefix + file
+        return str(path.absolute())
 
     @classmethod
-    def get_spec(cls, file: str) -> str:
-        prefix = cls.CONFIG_DIR
-        if Path(cls.DEV_CONFIG_DIR).is_dir():
-            prefix = cls.DEV_CONFIG_DIR
+    def get_spec(cls, file: Path | str) -> str:
+        dev_dir = cls.PYTHON_ROOT / cls.DEV_CONFIG_DIR
+        if dev_dir.is_dir():
+            path = dev_dir / "spec" / file
+        else:
+            path = cls.PYTHON_ROOT / cls.CONFIG_DIR / "spec" / file
 
-        return prefix + "spec/" + file
+        return str(path.absolute())
 
 
 class ConfigManager:

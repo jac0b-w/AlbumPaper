@@ -179,10 +179,9 @@ class GenerateWallpaper:
         if self.spotify_code and track.spotify_code_image is not None:
             spotify_code = structs.PythonImageBuffer(track.spotify_code_image)
 
-        print(background_config)
-
         albumpaper_rs.generate_save_wallpaper(
             structs.GenerationConfig(
+                python_root=str(AppPaths.PYTHON_ROOT.absolute()),
                 artwork=structs.PythonImageBuffer(image),
                 background=background_config,
                 foreground=structs.ForegroundConfig(
