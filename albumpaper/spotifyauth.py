@@ -1,14 +1,11 @@
 import contextlib
 import threading
-from typing import TYPE_CHECKING
+from collections.abc import Callable
 
 import spotipy
 import xxhash
 from configuration import ConfigManager
 from PySide6 import QtWidgets
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 
 class SpotifyAuth:

@@ -1,5 +1,5 @@
 /.vscode
-dist/
+*dist/
 build/
 *-dev*
 test*
@@ -17,3 +17,4 @@ flamegraph*
 /benches
 *.pyd
 *.pdb
+*.exe

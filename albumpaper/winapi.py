@@ -1,8 +1,8 @@
-
 import ctypes
 from ctypes import wintypes
 
 # https://stackoverflow.com/questions/8799646/preventing-multiple-instances-of-my-application
+
 
 class MutexNotAquiredError(Exception):
     pass
@@ -39,13 +39,14 @@ class NamedMutex:
 # https://docs.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-system_power_status
 class SYSTEM_POWER_STATUS(ctypes.Structure):
     _fields_ = [
-        ('ACLineStatus', wintypes.BYTE),
-        ('BatteryFlag', wintypes.BYTE),
-        ('BatteryLifePercent', wintypes.BYTE),
-        ('SystemStatusFlag', wintypes.BYTE),
-        ('BatteryLifeTime', wintypes.DWORD),
-        ('BatteryFullLifeTime', wintypes.DWORD),
+        ("ACLineStatus", wintypes.BYTE),
+        ("BatteryFlag", wintypes.BYTE),
+        ("BatteryLifePercent", wintypes.BYTE),
+        ("SystemStatusFlag", wintypes.BYTE),
+        ("BatteryLifeTime", wintypes.DWORD),
+        ("BatteryFullLifeTime", wintypes.DWORD),
     ]
+
 
 def battery_saver_enabled() -> bool:
     SYSTEM_POWER_STATUS_P = ctypes.POINTER(SYSTEM_POWER_STATUS)

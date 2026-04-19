@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import ctypes
 import enum
 import glob
@@ -13,7 +15,15 @@ from configuration import (
     AppPaths,
     ConfigManager,
 )
-from misc import Color, timer
+from misc import (
+    Color,
+    GenerateNew,
+    SetDefault,
+    SetPrevious,
+    Unchanged,
+    WallpaperAction,
+    timer,
+)
 from PIL import Image
 
 if TYPE_CHECKING:
@@ -21,9 +31,7 @@ if TYPE_CHECKING:
 
     from albumpaper import LastfmTrack, SpotifyTrack
 
-    type Track = SpotifyTrack | LastfmTrack
-
-from misc import GenerateNew, SetDefault, SetPrevious, Unchanged, WallpaperAction
+type Track = "SpotifyTrack | LastfmTrack"
 
 
 class BackgroundType(enum.StrEnum):
@@ -124,7 +132,12 @@ class GenerateWallpaper:
             key=lambda x: x["saturation"],
             reverse=True,
         )
-        # e.g. [{"color":(255,0,0),"saturation":0.75},{"color":(255,255,255),"saturation":0} ...]
+        # e.g.
+        # [
+        #      {"color":(255,0,0),"saturation":0.75},
+        #      {"color":(255,255,255),"saturation":0},
+        #      ...
+        # ]
         most_saturated = sorted_saturations[0]["color"]
 
         color_differences = [
@@ -166,6 +179,8 @@ class GenerateWallpaper:
         if self.spotify_code and track.spotify_code_image is not None:
             spotify_code = structs.PythonImageBuffer(track.spotify_code_image)
 
+        print(background_config)
+
         albumpaper_rs.generate_save_wallpaper(
             structs.GenerationConfig(
                 artwork=structs.PythonImageBuffer(image),
@@ -182,7 +197,7 @@ class GenerateWallpaper:
         )
 
     @timer
-    def solidcolor_background(self, track: Track) -> None:
+    def solidcolor_background(self, track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.SOLID_COLOR
 
         return structs.BackgroundConfig(
@@ -191,7 +206,7 @@ class GenerateWallpaper:
         )
 
     @timer
-    def lineargradient_background(self, track: Track) -> None:
+    def lineargradient_background(self, track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.LINEAR_GRADIENT
 
         from_color, to_color = self.gradient_colors(track.artwork)
@@ -202,7 +217,7 @@ class GenerateWallpaper:
         )
 
     @timer
-    def radialgradient_background(self, track: Track) -> None:
+    def radialgradient_background(self, track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.RADIAL_GRADIENT
 
         from_color, to_color = self.gradient_colors(track.artwork)
@@ -213,7 +228,7 @@ class GenerateWallpaper:
         )
 
     @timer
-    def colorednoise_background(self, track: Track) -> None:
+    def colorednoise_background(self, track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.COLORED_NOISE
 
         blur_radius=None
@@ -231,7 +246,7 @@ class GenerateWallpaper:
         )
 
     @timer
-    def albumart_background(self, _track: Track) -> None:
+    def albumart_background(self, _track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.ALBUM_ART
 
         blur_radius=None
@@ -244,7 +259,7 @@ class GenerateWallpaper:
         )
 
     @timer
-    def defaultwallpaper_background(self, _track: Track) -> None:
+    def defaultwallpaper_background(self, _track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.DEFAULT_WALLPAPER
 
         blur_radius=None

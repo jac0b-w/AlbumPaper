@@ -3,7 +3,7 @@ name = "albumpaper"
 version = "4.1.0"
 description = "An app for Windows that will change your desktop wallpaper to the album art of the song you are listening to."
 authors = [{ name = "jac0b_w" }]
-requires-python = ">=3.14"
+requires-python = "==3.13.13"
 readme = "README.md"
 license = "GPL-3.0"
 dependencies = [
@@ -21,7 +21,10 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["maturin>=1.0,<2.0"]
+dev = [
+    "maturin>=1.0,<2.0",
+    "nuitka[onefile]>=4.0.8",
+]
 
 [tool.uv]
 package = false

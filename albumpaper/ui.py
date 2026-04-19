@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
@@ -5,14 +7,10 @@ import requests
 from configuration import AppPaths, ConfigManager
 from packaging.version import Version
 from PySide6 import QtCore, QtGui, QtWidgets
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
 from wallpaper import BackgroundType, WindowsWallpaper
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    from albumpaper import PauseStateManager
 
 VERSION = Version("v4.2.0")
 
@@ -23,7 +21,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         icon: QtGui.QIcon,
         parent: QtWidgets.QWidget,
         signal: QtCore.Signal,
-        pause_state_manager: PauseStateManager,
+        pause_state_manager,
     ) -> None:
         super().__init__(icon, parent)
         self.setToolTip("AlbumPaper")
@@ -31,7 +29,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.signal = signal
         self.pause_state_manager = pause_state_manager
 
-        if QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark:
+        if QtWidgets.QApplication.styleHints().colorScheme() == QtCore.Qt.ColorScheme.Dark:
             self.icon_color = "white"
         else:
             self.icon_color = "black"
@@ -170,7 +168,7 @@ class SettingsWindow(QtWidgets.QWidget):
         self.setWindowTitle("Settings")
         # self.setFixedSize(570, 0)
 
-        if QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark:
+        if QtWidgets.QApplication.styleHints().colorScheme() == QtCore.Qt.ColorScheme.Dark:
             settings_icon_path = "assets/icons/white/settings.png"
         else:
             settings_icon_path = "assets/icons/black/settings.png"
@@ -222,7 +220,7 @@ class GeneralSettings(QtWidgets.QWidget):
 
         self.info_panel = QtWidgets.QWidget()
         self.info_panel.setLayout(QtWidgets.QVBoxLayout())
-        self.info_panel.layout().setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.info_panel.layout().setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
         self.info_panel.setStyleSheet("background-color; rgba(128, 128, 128, 20)")
 
         ap_label = QtWidgets.QLabel("AlbumPaper")
@@ -305,7 +303,7 @@ class DefaultWallpaperPreview(QtWidgets.QWidget):
         set_current_btn.clicked.connect(self.set_default_wallpaper)
 
         layout = QtWidgets.QHBoxLayout(self.overlay)
-        layout.setAlignment(Qt.AlignCenter)
+        layout.setAlignment(QtCore.Qt.AlignCenter)
 
         layout.addWidget(set_current_btn)
 
@@ -323,7 +321,7 @@ class DefaultWallpaperPreview(QtWidgets.QWidget):
         w = 320
         self.pixmap = QtGui.QPixmap(AppPaths.DEFAULT_WALLPAPER).scaledToWidth(
             w,
-            Qt.SmoothTransformation,
+            QtCore.Qt.SmoothTransformation,
         )
         self.label.setPixmap(self.pixmap)
 
@@ -686,7 +684,7 @@ class Sidebar(QtWidgets.QLabel):
         self.setFixedWidth(150)
 
         self.setLayout(QtWidgets.QVBoxLayout())
-        self.layout().setAlignment(Qt.AlignTop)
+        self.layout().setAlignment(QtCore.Qt.AlignTop)
         self.layout().setContentsMargins(0, 0, 0, 0)
 
         self.general_button = SidebarButton("General")

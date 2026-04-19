@@ -170,7 +170,7 @@ class LastfmTrack(Track):  # noqa: PLW1641
     def spotify_code_image(self) -> None:
         return None
 
-    def __eq__(self, other: LastfmTrack) -> bool:
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, LastfmTrack):
             return NotImplemented
         return (
@@ -223,7 +223,7 @@ class SpotifyTrack(Track):  # noqa: PLW1641
             return None
         return misc.download_image(self.spotify_code_url)
 
-    def __eq__(self, other: SpotifyTrack) -> bool:
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, SpotifyTrack):
             return NotImplemented
         return self.track_id == other.track_id
@@ -231,7 +231,7 @@ class SpotifyTrack(Track):  # noqa: PLW1641
 
 class BatterySaverCheckThread(QtCore.QThread):
     # https://stackoverflow.com/a/33150936
-    def __init__(self, pause_state_manager: PauseStateManager) -> None:
+    def __init__(self, pause_state_manager) -> None:  # noqa: ANN001
         QtCore.QThread.__init__(self, parent=None)
         self.pause_state_manager = pause_state_manager
 
@@ -447,10 +447,11 @@ if __name__ in "__main__":
 
             tray_icon.show()
 
-            Path.unlink(AppPaths.DROP_SHADOW, missing_ok=True)
-            if not Path.exists("./cache/images"):
-                Path.mkdir("./cache/images", parents=True, exist_ok=True)
-            if not Path.exists(AppPaths.DEFAULT_WALLPAPER):
+            Path(AppPaths.DROP_SHADOW).unlink(missing_ok=True)
+            cache_images_dir = Path("./cache/images")
+            if not cache_images_dir.exists():
+                cache_images_dir.mkdir(parents=True, exist_ok=True)
+            if not Path(AppPaths.DEFAULT_WALLPAPER).exists():
                 WindowsWallpaper.cache_current()
 
             err_message = ConfigManager.validate_service()

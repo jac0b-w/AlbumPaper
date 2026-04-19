@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import functools
 import inspect
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
 from io import BytesIO
 from typing import TYPE_CHECKING, Any
