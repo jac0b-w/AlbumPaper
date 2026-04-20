@@ -323,7 +323,9 @@ class WorkerThread(QtCore.QThread):
             with contextlib.suppress(Exception):
                 self.sleep.set()
             with contextlib.suppress(AttributeError):
-                self.get_art.previous_image_url = None
+                self.get_art.previous_playback_state = None
+
+            # self.get_art.previously_generated_track = None
 
     @QtCore.Slot(str)
     def pause_state(self, state: str) -> None:
@@ -398,7 +400,7 @@ class OnStartup:
             return app_log
 
     @staticmethod
-    def start_QApplication() -> None:
+    def start_QApplication() -> QtWidgets.QApplication:
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("AlbumPaper")
         try:
             app = QtWidgets.QApplication(sys.argv)
@@ -412,18 +414,22 @@ class OnStartup:
         return app
 
 
-"""
-exit_code = 1, restart app
-exit_code = 0, quit app
-"""
+RESTART_EXIT_CODE = 1
 
 if __name__ in "__main__":
-    exit_code = 1
+    exit_code = RESTART_EXIT_CODE
+    app_log = OnStartup.start_logger()
 
-    while exit_code == 1:
+    while exit_code == RESTART_EXIT_CODE:
         exit_code = 0
-        app_log = OnStartup.start_logger()
         try:
+            Path(AppPaths.DROP_SHADOW).unlink(missing_ok=True)
+            cache_images_dir = AppPaths.PYTHON_ROOT / "cache" / "images"
+            if not cache_images_dir.exists():
+                cache_images_dir.mkdir(parents=True, exist_ok=True)
+            if not Path(AppPaths.DEFAULT_WALLPAPER).exists():
+                WindowsWallpaper.cache_current()
+
             app = OnStartup.start_QApplication()
 
             widget = QtWidgets.QWidget()
@@ -454,13 +460,6 @@ if __name__ in "__main__":
 
             tray_icon.show()
 
-            Path(AppPaths.DROP_SHADOW).unlink(missing_ok=True)
-            cache_images_dir = AppPaths.PYTHON_ROOT / "cache" / "images"
-            if not cache_images_dir.exists():
-                cache_images_dir.mkdir(parents=True, exist_ok=True)
-            if not Path(AppPaths.DEFAULT_WALLPAPER).exists():
-                WindowsWallpaper.cache_current()
-
             err_message = ConfigManager.validate_service()
 
             if err_message:
@@ -477,7 +476,6 @@ if __name__ in "__main__":
                 pause_state_signals.pause_state.connect(worker_thread.pause_state)
                 pause_state_signals.pause_state.connect(tray_icon.pause_state)
 
-                worker_thread.finished.connect(app.exit)
                 worker_thread.start(priority=QtCore.QThread.LowPriority)
 
             pause_state_manager.send_signal()

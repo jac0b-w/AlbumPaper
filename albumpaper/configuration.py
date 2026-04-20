@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 
 import configobj
@@ -6,7 +7,7 @@ from PySide6 import QtWidgets
 
 
 class AppPaths:
-    PYTHON_ROOT = Path(__file__).resolve().parent
+    PYTHON_ROOT = Path(sys.argv[0]).resolve().parent
 
     DEFAULT_WALLPAPER = PYTHON_ROOT / "./cache/images/default_wallpaper.jpg"
     GENERATED_WALLPAPER = PYTHON_ROOT / "./cache/images/generated_wallpaper.png"

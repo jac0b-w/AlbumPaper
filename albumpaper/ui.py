@@ -129,7 +129,13 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
         self.pause_item.setText(options["text"])
         self.pause_item.setIcon(
-            QtGui.QIcon(str((icon_path / f"{options['icon']}.png").absolute())),
+            QtGui.QIcon(
+                str(
+                    (
+                        icon_path / self.icon_color / f"{options['icon']}.png"
+                    ).absolute()
+                )
+            ),
         )
         self.pause_item.setEnabled(options["enabled"])
 
@@ -146,8 +152,12 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
     def exit(self, exit_code: int) -> Callable:
         def exit_function() -> None:
-            WindowsWallpaper.set_default_wallpaper()
-            QtWidgets.QApplication.exit(exit_code)
+            try:
+                WindowsWallpaper.set_default_wallpaper()
+            except Exception as e:
+                print(f"Error setting default wallpaper: {e}")
+            # Use longer delay to ensure context menu closes before app exits
+            QtCore.QTimer.singleShot(100, lambda: QtWidgets.QApplication.exit(exit_code))
 
         return exit_function
 
@@ -185,13 +195,17 @@ class SettingsWindow(QtWidgets.QWidget):
             QtWidgets.QApplication.styleHints().colorScheme()
             == QtCore.Qt.ColorScheme.Dark
         ):
-            settings_icon_path = str((
-                AppPaths.PYTHON_ROOT / "assets" / "icons" / "white" / "settings.png"
-            ).absolute())
+            settings_icon_path = str(
+                (
+                    AppPaths.PYTHON_ROOT / "assets" / "icons" / "white" / "settings.png"
+                ).absolute()
+            )
         else:
-            settings_icon_path = str((
-                AppPaths.PYTHON_ROOT / "assets" / "icons" / "black" / "settings.png"
-            ).absolute())
+            settings_icon_path = str(
+                (
+                    AppPaths.PYTHON_ROOT / "assets" / "icons" / "black" / "settings.png"
+                ).absolute()
+            )
 
         if Path(settings_icon_path).exists():
             self.my_icon = QtGui.QIcon(settings_icon_path)
@@ -227,7 +241,9 @@ class SettingsWindow(QtWidgets.QWidget):
             event.ignore()
         else:
             ConfigManager.save_widget_state()
-            QtWidgets.QApplication.exit(1)  # send restart exit code
+            event.accept()
+            # Use longer delay to ensure close event completes before app exits
+            QtCore.QTimer.singleShot(100, lambda: QtWidgets.QApplication.exit(1))
 
     def openEvent(self, _event: QtCore.QEvent) -> None:
         if ConfigManager.validate_service():
