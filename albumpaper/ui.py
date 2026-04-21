@@ -97,7 +97,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         self.activated.connect(self.clicked)
 
     def get_icon(self, name: str) -> QtGui.QIcon:
-        assets_path: Path = AppPaths.PYTHON_ROOT / "assets" / "icons" / self.icon_color
+        assets_path: Path = AppPaths.PROJECT_ROOT / "assets" / "icons" / self.icon_color
         abs_path: Path = (assets_path / name).absolute()
         return QtGui.QIcon(str(abs_path))
 
@@ -125,7 +125,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
             },
         }[state]
 
-        icon_path = AppPaths.PYTHON_ROOT / "assets" / "icons"
+        icon_path = AppPaths.PROJECT_ROOT / "assets" / "icons"
 
         self.pause_item.setText(options["text"])
         self.pause_item.setIcon(
@@ -197,13 +197,13 @@ class SettingsWindow(QtWidgets.QWidget):
         ):
             settings_icon_path = str(
                 (
-                    AppPaths.PYTHON_ROOT / "assets" / "icons" / "white" / "settings.png"
+                    AppPaths.PROJECT_ROOT / "assets" / "icons" / "white" / "settings.png"
                 ).absolute()
             )
         else:
             settings_icon_path = str(
                 (
-                    AppPaths.PYTHON_ROOT / "assets" / "icons" / "black" / "settings.png"
+                    AppPaths.PROJECT_ROOT / "assets" / "icons" / "black" / "settings.png"
                 ).absolute()
             )
 
@@ -296,6 +296,11 @@ class GeneralSettings(QtWidgets.QWidget):
             QtWidgets.QCheckBox(),
         )
 
+        self.run_at_startup_checkbox = ConfigManager.register(
+            ("settings", "miscellaneous", "run_at_startup"),
+            QtWidgets.QCheckBox(),
+        )
+
         # layout
         self.setLayout(QtWidgets.QGridLayout())
         self.layout().setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
@@ -310,6 +315,8 @@ class GeneralSettings(QtWidgets.QWidget):
         self.layout().addWidget(self.check_updates_checkbox, 3, 1)
         self.layout().addWidget(QtWidgets.QLabel("Pause on Battery Saver"), 4, 0)
         self.layout().addWidget(self.battery_saver_checkbox, 4, 1)
+        self.layout().addWidget(QtWidgets.QLabel("Run at Startup"), 5, 0)
+        self.layout().addWidget(self.run_at_startup_checkbox, 5, 1)
 
 
 class DefaultWallpaperPreview(QtWidgets.QWidget):

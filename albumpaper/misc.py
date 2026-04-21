@@ -40,7 +40,7 @@ def download_image(url: str) -> Image.Image | None:
 
 
 # Factored out into a separate function to only cache compressed jpeg
-mem = joblib.Memory(AppPaths.PYTHON_ROOT / "cache" / "jpeg", verbose=0)
+mem = joblib.Memory(AppPaths.PROJECT_ROOT / "cache" / "jpeg", verbose=0)
 
 
 @timer

@@ -181,7 +181,7 @@ class GenerateWallpaper:
 
         albumpaper_rs.generate_save_wallpaper(
             structs.GenerationConfig(
-                python_root=str(AppPaths.PYTHON_ROOT.absolute()),
+                project_root=str(AppPaths.PROJECT_ROOT.absolute()),
                 artwork=structs.PythonImageBuffer(image),
                 background=background_config,
                 foreground=structs.ForegroundConfig(

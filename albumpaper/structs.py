@@ -27,7 +27,7 @@ class BackgroundConfig:
 
 @dataclass(kw_only=True)
 class GenerationConfig:
-    python_root: str
+    project_root: str
     artwork: PythonImageBuffer
     background: BackgroundConfig
     foreground: ForegroundConfig

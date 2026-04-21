@@ -24,7 +24,7 @@ class SpotifyAuth:
         ).hexdigest()
 
         spotipy_cache_path = (
-            AppPaths.PYTHON_ROOT / "cache" / f".spotipy-cache-{hashed_keys}"
+            AppPaths.PROJECT_ROOT / "cache" / f".spotipy-cache-{hashed_keys}"
         )
         self.sp_oauth = spotipy.SpotifyOAuth(
             client_id,

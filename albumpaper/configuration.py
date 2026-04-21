@@ -7,14 +7,14 @@ from PySide6 import QtWidgets
 
 
 class AppPaths:
-    PYTHON_ROOT = Path(sys.argv[0]).resolve().parent
+    PROJECT_ROOT = Path(sys.argv[0]).resolve().parent
 
-    DEFAULT_WALLPAPER = PYTHON_ROOT / "./cache/images/default_wallpaper.jpg"
-    GENERATED_WALLPAPER = PYTHON_ROOT / "./cache/images/generated_wallpaper.png"
-    DROP_SHADOW = PYTHON_ROOT / "./cache/images/drop_shadow.png"
+    DEFAULT_WALLPAPER = PROJECT_ROOT / "./cache/images/default_wallpaper.jpg"
+    GENERATED_WALLPAPER = PROJECT_ROOT / "./cache/images/generated_wallpaper.png"
+    DROP_SHADOW = PROJECT_ROOT / "./cache/images/drop_shadow.png"
 
-    CONFIG_DIR = PYTHON_ROOT / "./config/"
-    DEV_CONFIG_DIR = PYTHON_ROOT / "./config-dev/"
+    CONFIG_DIR = PROJECT_ROOT / "./config/"
+    DEV_CONFIG_DIR = PROJECT_ROOT / "./config-dev/"
 
     SECRETS = "secrets.ini"
     GLOBAL = "global.ini"
@@ -22,21 +22,21 @@ class AppPaths:
 
     @classmethod
     def get_config(cls, file: Path | str) -> str:
-        dev_dir = cls.PYTHON_ROOT / cls.DEV_CONFIG_DIR
+        dev_dir = cls.PROJECT_ROOT / cls.DEV_CONFIG_DIR
         if dev_dir.is_dir():
             path = dev_dir / file
         else:
-            path = cls.PYTHON_ROOT / cls.CONFIG_DIR / file
+            path = cls.PROJECT_ROOT / cls.CONFIG_DIR / file
 
         return str(path.absolute())
 
     @classmethod
     def get_spec(cls, file: Path | str) -> str:
-        dev_dir = cls.PYTHON_ROOT / cls.DEV_CONFIG_DIR
+        dev_dir = cls.PROJECT_ROOT / cls.DEV_CONFIG_DIR
         if dev_dir.is_dir():
             path = dev_dir / "spec" / file
         else:
-            path = cls.PYTHON_ROOT / cls.CONFIG_DIR / "spec" / file
+            path = cls.PROJECT_ROOT / cls.CONFIG_DIR / "spec" / file
 
         return str(path.absolute())
 

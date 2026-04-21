@@ -42,7 +42,7 @@ def dominant_colors(image: Image.Image) -> list[Color]:
     return _dominant_colors_cached(image, image_hash)
 
 
-mem = joblib.Memory(AppPaths.PYTHON_ROOT / "cache" / "dominant_colors", verbose=0)
+mem = joblib.Memory(AppPaths.PROJECT_ROOT / "cache" / "dominant_colors", verbose=0)
 
 
 @mem.cache(ignore=["image"])

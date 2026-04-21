@@ -8,6 +8,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+import winreg
 
 import imagegen
 import misc
@@ -413,6 +414,40 @@ class OnStartup:
 
         return app
 
+    @staticmethod
+    def check_cache_exists() -> None:
+        Path(AppPaths.DROP_SHADOW).unlink(missing_ok=True)
+        cache_images_dir = AppPaths.PROJECT_ROOT / "cache" / "images"
+        if not cache_images_dir.exists():
+            cache_images_dir.mkdir(parents=True, exist_ok=True)
+        if not Path(AppPaths.DEFAULT_WALLPAPER).exists():
+            WindowsWallpaper.cache_current()
+
+    @staticmethod
+    def check_run_on_startup_registry() -> None:
+        if __debug__:
+            return
+
+        name = "AlbumPaper"
+
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+            0,
+            winreg.KEY_SET_VALUE,
+        )
+
+        exe_path = str((AppPaths.PROJECT_ROOT / "albumpaper.exe").absolute())
+
+        if ConfigManager.settings["miscellaneous"]["run_at_startup"]:
+            winreg.SetValueEx(key, name, 0, winreg.REG_SZ, exe_path)
+
+        else:
+            with contextlib.suppress(FileNotFoundError):
+                winreg.DeleteValue(key, name)
+
+        winreg.CloseKey(key)
+
 
 RESTART_EXIT_CODE = 1
 
@@ -423,12 +458,8 @@ if __name__ in "__main__":
     while exit_code == RESTART_EXIT_CODE:
         exit_code = 0
         try:
-            Path(AppPaths.DROP_SHADOW).unlink(missing_ok=True)
-            cache_images_dir = AppPaths.PYTHON_ROOT / "cache" / "images"
-            if not cache_images_dir.exists():
-                cache_images_dir.mkdir(parents=True, exist_ok=True)
-            if not Path(AppPaths.DEFAULT_WALLPAPER).exists():
-                WindowsWallpaper.cache_current()
+            OnStartup.check_cache_exists()
+            OnStartup.check_run_on_startup_registry()
 
             app = OnStartup.start_QApplication()
 
@@ -440,7 +471,7 @@ if __name__ in "__main__":
             enabled_icon = QtGui.QIcon(
                 str(
                     (
-                        AppPaths.PYTHON_ROOT / "assets" / "icons" / "enabled.png"
+                        AppPaths.PROJECT_ROOT / "assets" / "icons" / "enabled.png"
                     ).absolute(),
                 ),
             )

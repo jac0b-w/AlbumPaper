@@ -59,7 +59,7 @@ impl AppPaths {
 
 #[derive(FromPyObject, Hash, PartialEq, Eq, Clone)]
 pub struct GenerationConfig {
-    pub python_root: String,
+    pub project_root: String,
     pub artwork: PythonImageBuffer,
     pub background: BackgroundConfig,
     pub foreground: ForegroundConfig,
@@ -86,7 +86,7 @@ pub struct BackgroundConfig {
 
 #[pyfunction]
 pub fn generate_save_wallpaper(config: GenerationConfig) {
-    let app_paths = AppPaths::from(config.python_root.clone());
+    let app_paths = AppPaths::from(config.project_root.clone());
     let image = generate_wallpaper(config, &app_paths);
     image.save(app_paths.generated_wallpaper).unwrap();
 }
