@@ -5,8 +5,9 @@ use image::{
     imageops,
 };
 use libblur::{self, GaussianBlurParams};
+use lowpoly::lowpoly;
 use pyo3::prelude::*;
-use rand::{RngExt};
+use rand::RngExt;
 use std::io::BufReader;
 use std::path::PathBuf;
 use std::{
@@ -14,7 +15,6 @@ use std::{
     hash::{Hash, Hasher},
 };
 use zune_jpeg::JpegDecoder;
-use lowpoly::lowpoly;
 
 pub mod gradient;
 pub mod noise;
@@ -46,7 +46,7 @@ pub struct AppPaths {
     drop_shadow: PathBuf,
 }
 
-impl AppPaths {
+impl From<String> for AppPaths {
     fn from(python_root: String) -> Self {
         let root = PathBuf::from(python_root);
         AppPaths {
@@ -82,6 +82,7 @@ pub struct BackgroundConfig {
     pub color1: Option<Color>,
     pub color2: Option<Color>,
     pub no_colors: Option<u16>,
+    pub n_samples: Option<u64>,
 }
 
 #[pyfunction]
@@ -137,10 +138,18 @@ pub fn generate_wallpaper(config: GenerationConfig, app_paths: &AppPaths) -> Rgb
                 config.display_geometry[1],
             );
             let lowpoly_img = DynamicImage::ImageRgba8(
-                lowpoly(DynamicImage::ImageRgb8(resized), 30_000).unwrap(),
+                lowpoly(
+                    DynamicImage::ImageRgb8(resized),
+                    config.background.n_samples.unwrap(),
+                )
+                .unwrap(),
             )
             .to_rgb8();
-            image_background(lowpoly_img, config.display_geometry, config.background.blur_radius)
+            image_background(
+                lowpoly_img,
+                config.display_geometry,
+                config.background.blur_radius,
+            )
         }
         "albumart" => image_background(
             artwork.clone(),
@@ -203,8 +212,7 @@ fn image_background(
     display_geometry: [u32; 2],
     blur_radius: Option<u32>,
 ) -> RgbImage {
-    let resized_background =
-        fast_resize(&background, display_geometry[0], display_geometry[1]);
+    let resized_background = fast_resize(&background, display_geometry[0], display_geometry[1]);
 
     if let Some(blur) = blur_radius {
         add_blur(DynamicImage::ImageRgb8(resized_background), blur).into_rgb8()
@@ -309,7 +317,6 @@ pub fn fast_resize(src_image: &RgbImage, nwidth: u32, nheight: u32) -> RgbImage 
     dst_image
 }
 
-
 fn generate_foreground(
     artwork: RgbImage,
     artwork_resize: u32,
@@ -321,12 +328,8 @@ fn generate_foreground(
     let mut base =
         RgbaImage::from_pixel(display_geometry[0], display_geometry[1], Rgba([0, 0, 0, 0]));
 
-    let artwork_resized = DynamicImage::ImageRgb8(fast_resize(
-        &artwork,
-        artwork_resize,
-        artwork_resize,
-    ))
-    .to_rgba8();
+    let artwork_resized =
+        DynamicImage::ImageRgb8(fast_resize(&artwork, artwork_resize, artwork_resize)).to_rgba8();
 
     let spacing = display_geometry[1] / 100;
 

@@ -24,6 +24,7 @@ class BackgroundConfig:
     color1: Color | None = None
     color2: Color | None = None
     no_colors: int | None = None
+    n_samples: int | None = None
 
 @dataclass(kw_only=True)
 class GenerationConfig:

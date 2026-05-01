@@ -39,6 +39,7 @@ class BackgroundType(enum.StrEnum):
     LINEAR_GRADIENT = "lineargradient"
     RADIAL_GRADIENT = "radialgradient"
     COLORED_NOISE = "colorednoise"
+    LOWPOLY = "lowpoly"
     ALBUM_ART = "albumart"
     DEFAULT_WALLPAPER = "defaultwallpaper"
 
@@ -164,6 +165,7 @@ class GenerateWallpaper:
             (BackgroundType.LINEAR_GRADIENT, self.lineargradient_background),
             (BackgroundType.RADIAL_GRADIENT, self.radialgradient_background),
             (BackgroundType.COLORED_NOISE, self.colorednoise_background),
+            (BackgroundType.LOWPOLY, self.lowpoly_background),
             (BackgroundType.ALBUM_ART, self.albumart_background),
             (BackgroundType.DEFAULT_WALLPAPER, self.defaultwallpaper_background),
         ]
@@ -242,6 +244,31 @@ class GenerateWallpaper:
             color1=color1,
             color2=color2,
             no_colors=no_colors,
+        )
+
+    @timer
+    def lowpoly_background(self, _track: Track) -> structs.BackgroundConfig:
+        background_type = BackgroundType.LOWPOLY
+
+        blur_radius=None
+        if ConfigManager.background[background_type]["blur"]:
+            blur_radius = self.blur_strength
+
+        n_samples = {
+            1: 5000,
+            2: 10_000,
+            3: 20_000,
+            4: 40_000,
+            5: 70_000,
+            6: 110_000,
+            7: 150_000,
+            8: 210_000,
+        }[ConfigManager.background[background_type]["detail_level"]]
+
+        return structs.BackgroundConfig(
+            background_type=background_type,
+            blur_radius=blur_radius,
+            n_samples=n_samples
         )
 
     @timer

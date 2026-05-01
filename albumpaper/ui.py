@@ -465,19 +465,8 @@ class BackgroundTab(QtWidgets.QWidget):
             ),
         ]
 
-        gradient_color_groupbox = QtWidgets.QGroupBox("Gradient Color", checkable=True)
+        gradient_color_groupbox = QtWidgets.QGroupBox("Gradient Color")
         gradient_color_groupbox.setLayout(QtWidgets.QVBoxLayout())
-
-        def checkbox_toggle() -> None:
-            gradient_color_groupbox.setChecked(
-                any(cb.isChecked() for cb in gradient_checkboxes),
-            )
-
-        linear_gradient_checkbox.clicked.connect(checkbox_toggle)
-        radial_gradient_checkbox.clicked.connect(checkbox_toggle)
-        gradient_color_groupbox.clicked.connect(
-            lambda checked: [cb.setChecked(checked) for cb in gradient_checkboxes],
-        )
 
         gradient_color_groupbox.layout().addWidget(linear_gradient_checkbox)
         gradient_color_groupbox.layout().addWidget(radial_gradient_checkbox)
@@ -522,6 +511,47 @@ class BackgroundTab(QtWidgets.QWidget):
         colored_noise_groupbox.layout().addWidget(colored_noise_groupbox.slider, 0, 1)
         colored_noise_groupbox.layout().addWidget(colored_noise_groupbox.spin_box, 0, 2)
 
+        # lowpoly section
+        #############################################################################################
+
+        lowpoly_groupbox = ConfigManager.register(
+            ("background", BackgroundType.LOWPOLY, "enabled"),
+            QtWidgets.QGroupBox("Low Poly", checkable=True),
+        )
+        lowpoly_groupbox.setLayout(QtWidgets.QGridLayout())
+
+        lowpoly_groupbox.slider = QtWidgets.QSlider(
+            QtCore.Qt.Orientation.Horizontal,
+        )
+        lowpoly_groupbox.spin_box = ConfigManager.register(
+            ("background", BackgroundType.LOWPOLY, "detail_level"),
+            QtWidgets.QSpinBox(),
+        )
+
+        min_detail_level, max_detail_level = 1, 8
+
+        lowpoly_groupbox.slider.valueChanged.connect(
+            lowpoly_groupbox.spin_box.setValue,
+        )
+        lowpoly_groupbox.slider.setMinimum(min_detail_level)
+        lowpoly_groupbox.slider.setMaximum(max_detail_level)
+
+        lowpoly_groupbox.spin_box.valueChanged.connect(
+            lowpoly_groupbox.slider.setValue,
+        )
+        lowpoly_groupbox.spin_box.setMinimum(min_detail_level)
+        lowpoly_groupbox.spin_box.setMaximum(max_detail_level)
+
+        lowpoly_blur_checkbox = ConfigManager.register(
+            ("background", BackgroundType.LOWPOLY, "blur"),
+            QtWidgets.QCheckBox("Blur"),
+        )
+
+        lowpoly_groupbox.layout().addWidget(lowpoly_blur_checkbox, 1, 0)
+        lowpoly_groupbox.layout().addWidget(QtWidgets.QLabel("Detail"), 0, 0)
+        lowpoly_groupbox.layout().addWidget(lowpoly_groupbox.slider, 0, 1)
+        lowpoly_groupbox.layout().addWidget(lowpoly_groupbox.spin_box, 0, 2)
+
         # album art section
 
         album_art_groupbox = ConfigManager.register(
@@ -557,6 +587,7 @@ class BackgroundTab(QtWidgets.QWidget):
         groupbox_layout.addWidget(solid_color_group)
         groupbox_layout.addWidget(gradient_color_groupbox)
         groupbox_layout.addWidget(colored_noise_groupbox)
+        groupbox_layout.addWidget(lowpoly_groupbox)
         groupbox_layout.addWidget(album_art_groupbox)
         groupbox_layout.addWidget(wallpaper_groupbox)
 
