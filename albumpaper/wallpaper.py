@@ -7,6 +7,7 @@ import os
 import random
 import shutil
 from typing import TYPE_CHECKING
+import time
 
 import albumpaper_rs
 import imagegen
@@ -23,6 +24,7 @@ from misc import (
     Unchanged,
     WallpaperAction,
     timer,
+    clamp
 )
 from PIL import Image
 
@@ -172,7 +174,7 @@ class GenerateWallpaper:
         enabled_bg_funcs = [
             bg[1] for bg in backgrounds if ConfigManager.background[bg[0]]["enabled"]
         ]
-        background_config = random.choice(enabled_bg_funcs)(track)
+        background_config: structs.BackgroundConfig = random.choice(enabled_bg_funcs)(track)
 
         image = track.artwork
 
@@ -181,23 +183,23 @@ class GenerateWallpaper:
         if self.spotify_code and track.spotify_code_image is not None:
             spotify_code = structs.PythonImageBuffer(track.spotify_code_image)
 
-        albumpaper_rs.generate_save_wallpaper(
-            structs.GenerationConfig(
-                project_root=str(AppPaths.PROJECT_ROOT.absolute()),
-                artwork=structs.PythonImageBuffer(image),
-                background=background_config,
-                foreground=structs.ForegroundConfig(
-                    show_artwork=self.foreground_enabled,
-                    artwork_resize=self.artwork_resize,
-                    drop_shadow=self.drop_shadow,
-                    spotify_code=spotify_code,
+        with timer(label=background_config.background_type) as t:
+            albumpaper_rs.generate_save_wallpaper(
+                structs.GenerationConfig(
+                    project_root=str(AppPaths.PROJECT_ROOT.absolute()),
+                    artwork=structs.PythonImageBuffer(image),
+                    background=background_config,
+                    foreground=structs.ForegroundConfig(
+                        show_artwork=self.foreground_enabled,
+                        artwork_resize=self.artwork_resize,
+                        drop_shadow=self.drop_shadow,
+                        spotify_code=spotify_code,
+                    ),
+                    display_geometry=self.display_geometry[:2],
+                    available_geometry=self.available_geometry,
                 ),
-                display_geometry=self.display_geometry[:2],
-                available_geometry=self.available_geometry,
-            ),
-        )
+            )
 
-    @timer
     def solidcolor_background(self, track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.SOLID_COLOR
 
@@ -206,7 +208,6 @@ class GenerateWallpaper:
             color1=track.dominant_colors[0],
         )
 
-    @timer
     def lineargradient_background(self, track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.LINEAR_GRADIENT
 
@@ -217,7 +218,6 @@ class GenerateWallpaper:
             color2=to_color,
         )
 
-    @timer
     def radialgradient_background(self, track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.RADIAL_GRADIENT
 
@@ -228,7 +228,6 @@ class GenerateWallpaper:
             color2=to_color,
         )
 
-    @timer
     def colorednoise_background(self, track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.COLORED_NOISE
 
@@ -246,7 +245,6 @@ class GenerateWallpaper:
             no_colors=no_colors,
         )
 
-    @timer
     def lowpoly_background(self, _track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.LOWPOLY
 
@@ -263,7 +261,7 @@ class GenerateWallpaper:
             6: 110_000,
             7: 150_000,
             8: 210_000,
-        }[ConfigManager.background[background_type]["detail_level"]]
+        }
 
         return structs.BackgroundConfig(
             background_type=background_type,
@@ -271,7 +269,6 @@ class GenerateWallpaper:
             n_samples=n_samples
         )
 
-    @timer
     def albumart_background(self, _track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.ALBUM_ART
 
@@ -284,7 +281,6 @@ class GenerateWallpaper:
             blur_radius=blur_radius,
         )
 
-    @timer
     def defaultwallpaper_background(self, _track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.DEFAULT_WALLPAPER
 

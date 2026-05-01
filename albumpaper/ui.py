@@ -548,7 +548,7 @@ class BackgroundTab(QtWidgets.QWidget):
         )
 
         lowpoly_groupbox.layout().addWidget(lowpoly_blur_checkbox, 1, 0)
-        lowpoly_groupbox.layout().addWidget(QtWidgets.QLabel("Detail"), 0, 0)
+        lowpoly_groupbox.layout().addWidget(QtWidgets.QLabel("Detail Level"), 0, 0)
         lowpoly_groupbox.layout().addWidget(lowpoly_groupbox.slider, 0, 1)
         lowpoly_groupbox.layout().addWidget(lowpoly_groupbox.spin_box, 0, 2)
 

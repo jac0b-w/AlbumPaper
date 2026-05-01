@@ -6,6 +6,7 @@ import xxhash
 from configuration import AppPaths, ConfigManager
 from misc import Color  # noqa: TC002
 from PIL import Image  # noqa: TC002
+from misc import timer
 
 
 def srgb_to_lin(color_channel: float) -> float:
@@ -36,7 +37,7 @@ def perceived_lightness(Y: float) -> float:  # noqa: N803
 
     return Y ** (1 / 3) * 116 - 16
 
-
+@timer(min_time=50)
 def dominant_colors(image: Image.Image) -> list[Color]:
     image_hash = xxhash.xxh32(image.tobytes("raw")).intdigest()
     return _dominant_colors_cached(image, image_hash)
