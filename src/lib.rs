@@ -6,7 +6,7 @@ use image::{
 };
 use libblur::{self, GaussianBlurParams};
 use pyo3::prelude::*;
-use rand::Rng;
+use rand::{RngExt};
 use std::io::BufReader;
 use std::path::PathBuf;
 use std::{
@@ -14,10 +14,10 @@ use std::{
     hash::{Hash, Hasher},
 };
 use zune_jpeg::JpegDecoder;
+use lowpoly::lowpoly;
 
 pub mod gradient;
 pub mod noise;
-pub mod resize;
 
 #[pymodule]
 fn albumpaper_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -130,6 +130,18 @@ pub fn generate_wallpaper(config: GenerationConfig, app_paths: &AppPaths) -> Rgb
                 background
             }
         }
+        "lowpoly" => {
+            let resized = fast_resize(
+                &artwork.clone(),
+                config.display_geometry[0],
+                config.display_geometry[1],
+            );
+            let lowpoly_img = DynamicImage::ImageRgba8(
+                lowpoly(DynamicImage::ImageRgb8(resized), 30_000).unwrap(),
+            )
+            .to_rgb8();
+            image_background(lowpoly_img, config.display_geometry, config.background.blur_radius)
+        }
         "albumart" => image_background(
             artwork.clone(),
             config.display_geometry,
@@ -192,7 +204,7 @@ fn image_background(
     blur_radius: Option<u32>,
 ) -> RgbImage {
     let resized_background =
-        resize::fast_resize(&background, display_geometry[0], display_geometry[1]);
+        fast_resize(&background, display_geometry[0], display_geometry[1]);
 
     if let Some(blur) = blur_radius {
         add_blur(DynamicImage::ImageRgb8(resized_background), blur).into_rgb8()
@@ -269,12 +281,34 @@ fn resize_default_wallpaper(
 ) {
     if default_wallpaper.dimensions() != display_geometry.into() {
         let resized_wallpaper =
-            resize::fast_resize(default_wallpaper, display_geometry[0], display_geometry[1]);
+            fast_resize(default_wallpaper, display_geometry[0], display_geometry[1]);
         resized_wallpaper
             .save(app_paths.default_wallpaper.clone())
             .unwrap();
     };
 }
+
+pub fn fast_resize(src_image: &RgbImage, nwidth: u32, nheight: u32) -> RgbImage {
+    use fast_image_resize::{ResizeOptions, Resizer};
+
+    let mut dst_image = RgbImage::new(nwidth, nheight);
+
+    let mut resizer = Resizer::new();
+    resizer
+        .resize(
+            src_image,
+            &mut dst_image,
+            &ResizeOptions::new()
+                .resize_alg(fast_image_resize::ResizeAlg::Convolution(
+                    fast_image_resize::FilterType::Lanczos3,
+                ))
+                .fit_into_destination(None)
+                .use_alpha(true),
+        )
+        .unwrap();
+    dst_image
+}
+
 
 fn generate_foreground(
     artwork: RgbImage,
@@ -287,7 +321,7 @@ fn generate_foreground(
     let mut base =
         RgbaImage::from_pixel(display_geometry[0], display_geometry[1], Rgba([0, 0, 0, 0]));
 
-    let artwork_resized = DynamicImage::ImageRgb8(resize::fast_resize(
+    let artwork_resized = DynamicImage::ImageRgb8(fast_resize(
         &artwork,
         artwork_resize,
         artwork_resize,

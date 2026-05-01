@@ -1,6 +1,6 @@
 use colorgrad::Gradient;
 use image::RgbImage;
-use rand::Rng;
+use rand::RngExt;
 use rayon::prelude::*;
 
 #[inline]
@@ -19,11 +19,7 @@ Returns an `RgbImage` of dimentions `geometry` with a linear gradient between
 * `to_color` - A list of rgb values for the right color of linear gradient
 
 */
-pub fn linear(
-    geometry: [u32; 2],
-    from_color: [u8; 3],
-    to_color: [u8; 3],
-) -> RgbImage {
+pub fn linear(geometry: [u32; 2], from_color: [u8; 3], to_color: [u8; 3]) -> RgbImage {
     let [width, height] = geometry;
 
     let mut image = RgbImage::new(width, height);
