@@ -261,7 +261,7 @@ class GenerateWallpaper:
             6: 110_000,
             7: 150_000,
             8: 210_000,
-        }
+        }[ConfigManager.background["lowpoly"]["detail_level"]]
 
         return structs.BackgroundConfig(
             background_type=background_type,
