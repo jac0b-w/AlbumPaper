@@ -54,7 +54,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
         ConfigManager.init_widgets()
 
         self.messageClicked.connect(
-            self.open_link("https://github.com/jac0b-w/AlbumPaper/releases"),
+            self.open_link("https://github.com/jac0-b/AlbumPaper/releases"),
         )
 
         suggested_update = self.suggest_update()
@@ -67,7 +67,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
             )
             release_item.triggered.connect(
                 self.open_link(
-                    "https://www.github.com/jac0b-w/AlbumPaper/releases/latest",
+                    "https://www.github.com/jac0-b/AlbumPaper/releases/latest",
                 ),
             )
 
@@ -167,7 +167,7 @@ class SystemTrayIcon(QtWidgets.QSystemTrayIcon):
 
         try:
             response = requests.get(
-                "https://api.github.com/repos/jac0b-w/AlbumPaper/releases/latest",
+                "https://api.github.com/repos/jac0-b/AlbumPaper/releases/latest",
                 timeout=1,
             )
             latest_version: Version = Version(response.json()["tag_name"])
@@ -262,7 +262,7 @@ class GeneralSettings(QtWidgets.QWidget):
         ap_label = QtWidgets.QLabel("AlbumPaper")
         ap_label.setStyleSheet("font-size: 36px;")
 
-        gh_link = "https://github.com/jac0b-w/AlbumPaper"
+        gh_link = "https://github.com/jac0-b/AlbumPaper"
         links_label = QtWidgets.QLabel(
             f"""<a href="{gh_link}">GitHub</a><br>
                 <a href="{gh_link}/releases">Releases</a><br>
@@ -673,7 +673,7 @@ class ServiceSettings(QtWidgets.QWidget):
         self.main_layout.addRow(self.api_keys_stacked)
 
         def create_help_link(service_name: str) -> QtWidgets.QLabel:
-            page = "https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys"
+            page = "https://github.com/jac0-b/AlbumPaper/wiki/Getting-API-Keys"
             help_link = QtWidgets.QLabel(
                 f'<a href="{page}#{service_name.replace(".", "")}">'
                 f"Where do I find {service_name} API keys?</a>",
