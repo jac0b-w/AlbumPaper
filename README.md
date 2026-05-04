@@ -3,7 +3,7 @@
 This is a system tray app for windows that will change your desktop wallpaper based on the track you are listening to.
 Works with Spotify or Last.fm. An internet connection is required.
 
-## [Download](https://github.com/jac0b-w/AlbumPaper/releases/latest)
+## [Download](https://github.com/jac0-b/AlbumPaper/releases/latest)
 
 https://github.com/user-attachments/assets/6303379c-3f87-4fa4-b0a6-f9d50cd9bb4a
 
@@ -12,11 +12,11 @@ https://github.com/user-attachments/assets/6303379c-3f87-4fa4-b0a6-f9d50cd9bb4a
 
 ## Getting Started
 
-[Download installer (windows)](https://github.com/jac0b-w/AlbumPaper/releases/latest)
+[Download installer (windows)](https://github.com/jac0-b/AlbumPaper/releases/latest)
 
 There is a short initial setup:
 
-1. Start the app (This takes a while ~15s). A music note icon will appear in the system tray and a window will open prompting you to select your service (Spotify or Last.fm) and enter your [API keys](https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys)
+1. Start the app (This takes a while ~15s). A music note icon will appear in the system tray and a window will open prompting you to select your service (Spotify or Last.fm) and enter your [API keys](https://github.com/jac0-b/AlbumPaper/wiki/Getting-API-Keys)
 2. Press 'Save' and start the app again.
     - If you are using the Spotify your browser will open prompting you to login to your Spotify account.
     - If the page shows ```INVALID_CLIENT: Invalid redirect URI``` you should try quitting AlbumPaper by right clicking the tray icon and then start AlbumPaper again.
@@ -34,7 +34,7 @@ If you are running from source you will also need to **(this is not required if 
 
 ### Getting your API Keys
 
-[This section has been moved to the wiki](https://github.com/jac0b-w/AlbumPaper/wiki/Getting-API-Keys)
+[This section has been moved to the wiki](https://github.com/jac0-b/AlbumPaper/wiki/Getting-API-Keys)
 
 ## Contributing
 

@@ -7,7 +7,6 @@ import os
 import random
 import shutil
 from typing import TYPE_CHECKING
-import time
 
 import albumpaper_rs
 import imagegen
@@ -24,7 +23,6 @@ from misc import (
     Unchanged,
     WallpaperAction,
     timer,
-    clamp
 )
 from PIL import Image
 
@@ -42,6 +40,7 @@ class BackgroundType(enum.StrEnum):
     RADIAL_GRADIENT = "radialgradient"
     COLORED_NOISE = "colorednoise"
     LOWPOLY = "lowpoly"
+    POINTILLIST = "pointillist"
     ALBUM_ART = "albumart"
     DEFAULT_WALLPAPER = "defaultwallpaper"
 
@@ -170,11 +169,14 @@ class GenerateWallpaper:
             (BackgroundType.LOWPOLY, self.lowpoly_background),
             (BackgroundType.ALBUM_ART, self.albumart_background),
             (BackgroundType.DEFAULT_WALLPAPER, self.defaultwallpaper_background),
+            (BackgroundType.POINTILLIST, self.pointillist_background)
         ]
         enabled_bg_funcs = [
             bg[1] for bg in backgrounds if ConfigManager.background[bg[0]]["enabled"]
         ]
-        background_config: structs.BackgroundConfig = random.choice(enabled_bg_funcs)(track)
+        background_config: structs.BackgroundConfig = random.choice(enabled_bg_funcs)(
+            track
+        )
 
         image = track.artwork
 
@@ -231,7 +233,7 @@ class GenerateWallpaper:
     def colorednoise_background(self, track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.COLORED_NOISE
 
-        blur_radius=None
+        blur_radius = None
         if ConfigManager.background[background_type]["blur"]:
             blur_radius = self.blur_strength
         no_colors = ConfigManager.background[background_type]["no_colors"]
@@ -248,7 +250,7 @@ class GenerateWallpaper:
     def lowpoly_background(self, _track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.LOWPOLY
 
-        blur_radius=None
+        blur_radius = None
         if ConfigManager.background[background_type]["blur"]:
             blur_radius = self.blur_strength
 
@@ -266,13 +268,37 @@ class GenerateWallpaper:
         return structs.BackgroundConfig(
             background_type=background_type,
             blur_radius=blur_radius,
-            n_samples=n_samples
+            n_samples=n_samples,
+        )
+
+    def pointillist_background(self, _track: Track) -> structs.BackgroundConfig:
+        background_type = BackgroundType.POINTILLIST
+
+        blur_radius = None
+        if ConfigManager.background[background_type]["blur"]:
+            blur_radius = self.blur_strength
+
+        n_samples = {
+            1: 5000,
+            2: 10_000,
+            3: 20_000,
+            4: 40_000,
+            5: 70_000,
+            6: 110_000,
+            7: 150_000,
+            8: 210_000,
+        }[ConfigManager.background["lowpoly"]["detail_level"]]
+
+        return structs.BackgroundConfig(
+            background_type=background_type,
+            blur_radius=blur_radius,
+            n_samples=n_samples,
         )
 
     def albumart_background(self, _track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.ALBUM_ART
 
-        blur_radius=None
+        blur_radius = None
         if ConfigManager.background[background_type]["blur"]:
             blur_radius = self.blur_strength
 
@@ -284,7 +310,7 @@ class GenerateWallpaper:
     def defaultwallpaper_background(self, _track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.DEFAULT_WALLPAPER
 
-        blur_radius=None
+        blur_radius = None
         if ConfigManager.background[background_type]["blur"]:
             blur_radius = self.blur_strength
 

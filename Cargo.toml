@@ -19,7 +19,7 @@ rand = "0.10.1"
 colorgrad = "0.8.0"
 noise = "0.9.0"
 
-lowpoly = { git = "https://github.com/jac0b-w/lowpoly.git#67b91a24" }
+geometrize = { git = "https://github.com/jac0-b/geometrize.git" }
 
 
 [dev-dependencies]

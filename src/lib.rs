@@ -5,7 +5,6 @@ use image::{
     imageops,
 };
 use libblur::{self, GaussianBlurParams};
-use lowpoly::lowpoly;
 use pyo3::prelude::*;
 use rand::RngExt;
 use std::io::BufReader;
@@ -15,6 +14,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 use zune_jpeg::JpegDecoder;
+use geometrize::{SamplingParams, geometrize};
 
 pub mod gradient;
 pub mod noise;
@@ -82,7 +82,7 @@ pub struct BackgroundConfig {
     pub color1: Option<Color>,
     pub color2: Option<Color>,
     pub no_colors: Option<u16>,
-    pub n_samples: Option<u64>,
+    pub n_samples: Option<u32>,
 }
 
 #[pyfunction]
@@ -138,15 +138,39 @@ pub fn generate_wallpaper(config: GenerationConfig, app_paths: &AppPaths) -> Rgb
                 config.display_geometry[1],
             );
             let lowpoly_img = DynamicImage::ImageRgba8(
-                lowpoly(
+                geometrize(
                     DynamicImage::ImageRgb8(resized),
+                    geometrize::Style::Lowpoly,
                     config.background.n_samples.unwrap(),
+                    SamplingParams::default(),
                 )
                 .unwrap(),
             )
             .to_rgb8();
             image_background(
                 lowpoly_img,
+                config.display_geometry,
+                config.background.blur_radius,
+            )
+        }
+        "pointillist" => {
+            let resized = fast_resize(
+                &artwork.clone(),
+                config.display_geometry[0],
+                config.display_geometry[1],
+            );
+            let pointillist_img = DynamicImage::ImageRgba8(
+                geometrize(
+                    DynamicImage::ImageRgb8(resized),
+                    geometrize::Style::Pointillist { noise: 0.3 },
+                    config.background.n_samples.unwrap(),
+                    SamplingParams::default(),
+                )
+                .unwrap(),
+            )
+            .to_rgb8();
+            image_background(
+                pointillist_img,
                 config.display_geometry,
                 config.background.blur_radius,
             )
