@@ -12,7 +12,7 @@ class PythonImageBuffer:
 @dataclass(kw_only=True)
 class ForegroundConfig:
     show_artwork: bool
-    artwork_resize: int | None
+    artwork_size: int | None
     drop_shadow: bool
     rounded_corners: bool
     spotify_code: PythonImageBuffer | None

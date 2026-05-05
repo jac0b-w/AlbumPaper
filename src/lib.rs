@@ -1,41 +1,35 @@
-#![allow(clippy::manual_map)]
-
 use geometrize::{SamplingParams, geometrize};
 use image::{
     DynamicImage, GrayAlphaImage, ImageBuffer, ImageReader, LumaA, RgbImage, Rgba, RgbaImage,
     imageops,
 };
-use libblur::{self, GaussianBlurParams};
 use pyo3::prelude::*;
-use rand::RngExt;
-use std::io::BufReader;
+use rand::{RngExt, SeedableRng, rngs::SmallRng};
 use std::path::PathBuf;
-use std::{
-    collections::hash_map::DefaultHasher,
-    hash::{Hash, Hasher},
-};
-use zune_jpeg::JpegDecoder;
+
+use crate::misc::seed_from_image;
 
 pub mod gradient;
+pub mod misc;
 pub mod noise;
 
-#[pymodule]
-fn albumpaper_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(generate_save_wallpaper, module)?)?;
-    Ok(())
-}
-
 type Color = [u8; 3];
+type Size = [u32; 2];
+type Rect = [u32; 4];
+
+const CORNER_RADIUS_FRACTION: f32 = 20.0 / 600.0;
+const SPACING_DIVISOR: u32 = 100;
+const DROP_SHADOW_BLUR_RADIUS: u32 = 120;
 
 #[derive(FromPyObject, Hash, PartialEq, Eq, Clone)]
 pub struct PythonImageBuffer {
-    pub size: [u32; 2],
+    pub size: Size,
     pub buffer: Vec<u8>,
 }
 
 impl PythonImageBuffer {
     fn to_image(&self) -> RgbaImage {
-        DynamicImage::ImageRgb8(
+        DynamicImage::from(
             RgbImage::from_raw(self.size[0], self.size[1], self.buffer.clone()).unwrap(),
         )
         .to_rgba8()
@@ -52,10 +46,11 @@ pub struct AppPaths {
 impl From<String> for AppPaths {
     fn from(python_root: String) -> Self {
         let root = PathBuf::from(python_root);
+        let images_cache_dir = root.join("cache").join("images");
         AppPaths {
-            default_wallpaper: root.join("cache\\images\\default_wallpaper.jpg"),
-            generated_wallpaper: root.join("cache\\images\\generated_wallpaper.png"),
-            drop_shadow: root.join("cache\\images\\drop_shadow.png"),
+            default_wallpaper: images_cache_dir.join("default_wallpaper.jpg"),
+            generated_wallpaper: images_cache_dir.join("generated_wallpaper.png"),
+            drop_shadow: images_cache_dir.join("drop_shadow.png"),
         }
     }
 }
@@ -66,14 +61,14 @@ pub struct GenerationConfig {
     pub artwork: PythonImageBuffer,
     pub background: BackgroundConfig,
     pub foreground: ForegroundConfig,
-    pub display_geometry: [u32; 2],
-    pub available_geometry: [u32; 4],
+    pub display_geometry: Size,
+    pub available_geometry: Rect,
 }
 
 #[derive(FromPyObject, Hash, PartialEq, Eq, Clone)]
 pub struct ForegroundConfig {
     pub show_artwork: bool,
-    pub artwork_resize: u32,
+    pub artwork_size: u32,
     pub drop_shadow: bool,
     pub rounded_corners: bool,
     pub spotify_code: Option<PythonImageBuffer>,
@@ -89,6 +84,12 @@ pub struct BackgroundConfig {
     pub n_samples: Option<u32>,
 }
 
+#[pymodule]
+fn albumpaper_rs(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(generate_save_wallpaper, module)?)?;
+    Ok(())
+}
+
 #[pyfunction]
 pub fn generate_save_wallpaper(config: GenerationConfig) {
     let app_paths = AppPaths::from(config.project_root.clone());
@@ -96,102 +97,31 @@ pub fn generate_save_wallpaper(config: GenerationConfig) {
     image.save(app_paths.generated_wallpaper).unwrap();
 }
 
-// In seperate function for possible caching
 pub fn generate_wallpaper(config: GenerationConfig, app_paths: &AppPaths) -> RgbaImage {
     let artwork = config.artwork.to_image();
 
-    let background = match config.background.background_type.as_str() {
-        "solidcolor" => {
-            let [r, g, b] = config.background.color1.unwrap();
-            RgbaImage::from_pixel(
-                config.display_geometry[0],
-                config.display_geometry[1],
-                Rgba([r, g, b, 255]),
-            )
-        }
-        "lineargradient" => DynamicImage::ImageRgb8(gradient::linear(
-            config.display_geometry,
-            config.background.color1.unwrap(),
-            config.background.color2.unwrap(),
-        ))
-        .to_rgba8(),
-        "radialgradient" => DynamicImage::ImageRgb8(gradient::radial(
-            config.display_geometry,
-            config.background.color1.unwrap(),
-            config.background.color2.unwrap(),
-            config.foreground.artwork_resize,
-        ))
-        .to_rgba8(),
-        "colorednoise" => {
-            let mut hasher = DefaultHasher::new();
-            config.artwork.buffer.hash(&mut hasher);
-            let seed: u32 = hasher.finish() as u32;
-            let background = noise::colored(
-                config.display_geometry,
-                config.background.color1.unwrap(),
-                config.background.color2.unwrap(),
-                config.background.no_colors.unwrap(),
-                seed,
-            );
-
-            if let Some(blur_radius) = config.background.blur_radius {
-                add_blur(DynamicImage::ImageRgb8(background), blur_radius).to_rgba8()
-            } else {
-                DynamicImage::ImageRgb8(background).to_rgba8()
-            }
-        }
-        "lowpoly" => {
-            let resized = fast_resize(
-                &artwork.clone(),
-                config.display_geometry[0],
-                config.display_geometry[1],
-            );
-            geometrize(
-                DynamicImage::ImageRgba8(resized),
-                geometrize::Style::Lowpoly,
-                config.background.n_samples.unwrap(),
-                SamplingParams::default(),
-            )
-            .unwrap()
-        }
-        "pointillist" => {
-            let resized = fast_resize(
-                &artwork.clone(),
-                config.display_geometry[0],
-                config.display_geometry[1],
-            );
-            geometrize(
-                DynamicImage::ImageRgba8(resized),
-                geometrize::Style::Pointillist { noise: 0.3 },
-                config.background.n_samples.unwrap(),
-                SamplingParams::default(),
-            )
-            .unwrap()
-        }
-        "albumart" => image_background(
-            artwork.clone(),
-            config.display_geometry,
-            config.background.blur_radius,
-        ),
-        "defaultwallpaper" => {
-            let default_wallpaper = decode_jpeg(app_paths.default_wallpaper.clone());
-            resize_default_wallpaper(&default_wallpaper, config.display_geometry, app_paths);
-            image_background(
-                default_wallpaper,
-                config.display_geometry,
-                config.background.blur_radius,
-            )
-        }
-        unknown => panic!("Unknown background type '{unknown}'"),
-    };
+    // for reproducability
+    let mut rng = SmallRng::seed_from_u64(seed_from_image(&artwork));
 
     let mut base = RgbaImage::new(config.display_geometry[0], config.display_geometry[1]);
 
-    // Background Paste
-    let x = (config.display_geometry[0] as i64 - background.width() as i64) / 2;
-    let y = (config.display_geometry[1] as i64 - background.height() as i64) / 2;
+    let background = generate_background(
+        &artwork,
+        config.background,
+        config.display_geometry,
+        config.foreground.artwork_size,
+        &mut rng,
+        app_paths,
+    );
 
-    let background = background;
+    let drop_shadow = config.foreground.drop_shadow;
+
+    // Background Paste
+    let [x, y] = center_position(
+        config.display_geometry,
+        background.dimensions().into(),
+        [0, 0],
+    );
     imageops::overlay(&mut base, &background, x, y);
 
     if !config.foreground.show_artwork {
@@ -200,22 +130,22 @@ pub fn generate_wallpaper(config: GenerationConfig, app_paths: &AppPaths) -> Rgb
 
     let foreground = generate_foreground(
         artwork,
-        config.foreground.artwork_resize,
-        config.foreground.rounded_corners,
-        config.foreground.spotify_code,
+        config.foreground,
         config.display_geometry,
         config.available_geometry,
     );
 
-    if config.foreground.drop_shadow {
-        let drop_shadow_image = match ImageReader::open(app_paths.drop_shadow.clone()) {
-            Ok(drop_shadow_data) => drop_shadow_data.decode().unwrap().to_rgba8(),
-            Err(_e) => {
-                let drop_shadow = generate_drop_shadow(&foreground);
-                drop_shadow.save(app_paths.drop_shadow.clone()).unwrap();
-                drop_shadow
-            }
-        };
+    if drop_shadow {
+        let drop_shadow_path = &app_paths.drop_shadow;
+        let drop_shadow_image = ImageReader::open(drop_shadow_path)
+            .ok()
+            .and_then(|r| r.decode().ok())
+            .map(|img| img.to_rgba8())
+            .unwrap_or_else(|| {
+                let shadow = generate_drop_shadow(&foreground, &mut rng);
+                shadow.save(drop_shadow_path).unwrap();
+                shadow
+            });
         imageops::overlay(&mut base, &drop_shadow_image, 0, 0);
     }
 
@@ -224,42 +154,8 @@ pub fn generate_wallpaper(config: GenerationConfig, app_paths: &AppPaths) -> Rgb
     base
 }
 
-// Used by wallpaper and artwork backgrounds
-fn image_background(
-    background: RgbaImage,
-    display_geometry: [u32; 2],
-    blur_radius: Option<u32>,
-) -> RgbaImage {
-    let resized_background = fast_resize(&background, display_geometry[0], display_geometry[1]);
-
-    if let Some(blur) = blur_radius {
-        add_blur(DynamicImage::ImageRgba8(resized_background), blur).to_rgba8()
-    } else {
-        resized_background
-    }
-}
-
-fn add_blur(image: DynamicImage, blur_radius: u32) -> DynamicImage {
-    let sigma = blur_radius as f64 / 2.0;
-
-    // use the maximum kernel size possible
-    let max_dimension = std::cmp::max(image.width(), image.height());
-    let kernel_size = max_dimension + max_dimension % 2 + 1;
-
-    libblur::gaussian_blur_image(
-        image,
-        GaussianBlurParams::new(kernel_size, sigma),
-        libblur::EdgeMode2D::new(libblur::EdgeMode::Clamp),
-        libblur::ConvolutionMode::Exact,
-        libblur::ThreadingPolicy::Adaptive,
-    )
-    .unwrap()
-}
-
-pub fn generate_drop_shadow(foreground: &RgbaImage) -> RgbaImage {
+fn generate_drop_shadow(foreground: &RgbaImage, rng: &mut SmallRng) -> RgbaImage {
     let (width, height) = foreground.dimensions();
-
-    let mut rng = rand::rng();
 
     let mask = GrayAlphaImage::from_fn(width, height, |x, y| {
         let rgba_pixel = foreground.get_pixel(x, y);
@@ -267,12 +163,11 @@ pub fn generate_drop_shadow(foreground: &RgbaImage) -> RgbaImage {
         LumaA([0u8, rgba_pixel[3]])
     });
 
-    let drop_shadow = add_blur(DynamicImage::ImageLumaA8(mask), 120).to_luma_alpha8();
-
-    // let dithered_vec = Vec::with_capacity((width*height) as usize);
+    let drop_shadow =
+        misc::add_blur(DynamicImage::from(mask), DROP_SHADOW_BLUR_RADIUS).to_luma_alpha8();
 
     let dithered_drop_shadow =
-        ImageBuffer::from_fn(drop_shadow.width(), drop_shadow.height(), |x, y| {
+        ImageBuffer::from_fn(drop_shadow.width(), drop_shadow.height(), |x: u32, y| {
             let pixel = drop_shadow.get_pixel(x, y);
 
             let alpha_8_floor = pixel[1] as i32;
@@ -282,153 +177,138 @@ pub fn generate_drop_shadow(foreground: &RgbaImage) -> RgbaImage {
             LumaA([0u8, dithered as u8])
         });
 
-    let drop_shadow = DynamicImage::ImageLumaA8(dithered_drop_shadow).to_rgba8();
-
-    drop_shadow
+    DynamicImage::from(dithered_drop_shadow).to_rgba8()
 }
 
-fn decode_jpeg(path: PathBuf) -> RgbaImage {
-    let image = BufReader::new(std::fs::File::open(path).unwrap());
-    let mut decoder = JpegDecoder::new(image);
-
-    decoder.decode_headers().unwrap();
-    let image_info = decoder.info().unwrap();
-
-    let pixels = decoder.decode().unwrap();
-
-    RgbaImage::from_raw(image_info.width.into(), image_info.height.into(), pixels).unwrap()
-}
-
-// Easier to just replace cache/images/defefault_wallpaper ourselves for consitency with generated wallpapers
-fn resize_default_wallpaper(
-    default_wallpaper: &RgbaImage,
-    display_geometry: [u32; 2],
+fn generate_background(
+    artwork: &RgbaImage,
+    background_config: BackgroundConfig,
+    display_geometry: Size,
+    artwork_size: u32,
+    rng: &mut SmallRng,
     app_paths: &AppPaths,
-) {
-    if default_wallpaper.dimensions() != display_geometry.into() {
-        let resized_wallpaper =
-            fast_resize(default_wallpaper, display_geometry[0], display_geometry[1]);
-        resized_wallpaper
-            .save(app_paths.default_wallpaper.clone())
-            .unwrap();
+) -> RgbaImage {
+    let [width, height] = display_geometry;
+    let resized_artwork = || misc::fast_resize(artwork, width, height);
+
+    let background = match background_config.background_type.as_ref() {
+        "solidcolor" => {
+            let [r, g, b] = background_config.color1.unwrap();
+            RgbaImage::from_pixel(width, height, Rgba([r, g, b, 255]))
+        }
+        "lineargradient" => DynamicImage::from(gradient::linear(
+            display_geometry,
+            background_config.color1.unwrap(),
+            background_config.color2.unwrap(),
+        ))
+        .to_rgba8(),
+        "radialgradient" => DynamicImage::from(gradient::radial(
+            display_geometry,
+            background_config.color1.unwrap(),
+            background_config.color2.unwrap(),
+            artwork_size,
+        ))
+        .to_rgba8(),
+        "colorednoise" => {
+            let seed: u32 = rng.random();
+            DynamicImage::from(noise::colored(
+                display_geometry,
+                background_config.color1.unwrap(),
+                background_config.color2.unwrap(),
+                background_config.no_colors.unwrap(),
+                seed,
+            ))
+            .to_rgba8()
+        }
+        "lowpoly" => geometrize(
+            DynamicImage::from(resized_artwork()),
+            geometrize::Style::Lowpoly,
+            background_config.n_samples.unwrap(),
+            SamplingParams::default(),
+        )
+        .unwrap(),
+        "pointillist" => geometrize(
+            DynamicImage::from(resized_artwork()),
+            geometrize::Style::Pointillist { noise: 0.3 },
+            background_config.n_samples.unwrap(),
+            SamplingParams::default(),
+        )
+        .unwrap(),
+        "albumart" => resized_artwork(),
+        "defaultwallpaper" => {
+            let default_wallpaper = ImageReader::open(&app_paths.default_wallpaper)
+                .unwrap()
+                .decode()
+                .unwrap()
+                .to_rgba8();
+            misc::resize_default_wallpaper(default_wallpaper, display_geometry, app_paths)
+        }
+        unknown => panic!("Unknown background type '{unknown}'"),
     };
-}
 
-pub fn fast_resize(src_image: &RgbaImage, nwidth: u32, nheight: u32) -> RgbaImage {
-    use fast_image_resize::{ResizeOptions, Resizer};
-
-    let mut dst_image = RgbaImage::new(nwidth, nheight);
-
-    let mut resizer = Resizer::new();
-    resizer
-        .resize(
-            src_image,
-            &mut dst_image,
-            &ResizeOptions::new()
-                .resize_alg(fast_image_resize::ResizeAlg::Convolution(
-                    fast_image_resize::FilterType::Lanczos3,
-                ))
-                .fit_into_destination(None)
-                .use_alpha(true),
-        )
-        .unwrap();
-    dst_image
-}
-
-pub fn fast_resize_rgba(src_image: &RgbaImage, nwidth: u32, nheight: u32) -> RgbaImage {
-    use fast_image_resize::{ResizeOptions, Resizer};
-
-    let mut dst_image = RgbaImage::new(nwidth, nheight);
-
-    let mut resizer = Resizer::new();
-    resizer
-        .resize(
-            src_image,
-            &mut dst_image,
-            &ResizeOptions::new()
-                .resize_alg(fast_image_resize::ResizeAlg::Convolution(
-                    fast_image_resize::FilterType::Lanczos3,
-                ))
-                .fit_into_destination(None)
-                .use_alpha(true),
-        )
-        .unwrap();
-    dst_image
+    if let Some(radius) = background_config.blur_radius {
+        misc::add_blur(DynamicImage::from(background), radius).to_rgba8()
+    } else {
+        background
+    }
 }
 
 fn generate_foreground(
-    mut artwork: RgbaImage,
-    artwork_resize: u32,
-    rounded_corners: bool,
-    spotify_code: Option<PythonImageBuffer>,
-    display_geometry: [u32; 2],
-    available_geometry: [u32; 4],
+    artwork: RgbaImage,
+    foreground_config: ForegroundConfig,
+    display_geometry: Size,
+    available_geometry: Rect,
 ) -> RgbaImage {
+    let ForegroundConfig {
+        artwork_size,
+        rounded_corners,
+        spotify_code,
+        ..
+    } = foreground_config;
+
+    let apply_rounded_corners = |img: &mut RgbaImage| {
+        if rounded_corners {
+            misc::round_corners(img, CORNER_RADIUS_FRACTION);
+        }
+    };
+
     // create transparent base
     let mut base =
         RgbaImage::from_pixel(display_geometry[0], display_geometry[1], Rgba([0, 0, 0, 0]));
 
-    if rounded_corners {
-        round_corners(&mut artwork, 20.0);
-    }
+    let mut artwork_resized = misc::fast_resize(&artwork, artwork_size, artwork_size);
 
-    let artwork_resized =
-        DynamicImage::ImageRgba8(fast_resize_rgba(&artwork, artwork_resize, artwork_resize));
+    apply_rounded_corners(&mut artwork_resized);
 
-    let spacing = display_geometry[1] / 100;
+    let spacing = display_geometry[1] / SPACING_DIVISOR;
 
     let foreground_height = match spotify_code.as_ref() {
-        Some(buffer) => artwork_resize + spacing + buffer.size[1],
-        None => artwork_resize,
+        Some(buffer) => artwork_size + spacing + buffer.size[1],
+        None => artwork_size,
     };
 
-    let x: i64 = (i64::from(available_geometry[0]) - i64::from(artwork_resized.width())) / 2
-        + i64::from(available_geometry[2]);
-    let y = (i64::from(available_geometry[1]) - i64::from(foreground_height)) / 2
-        + i64::from(available_geometry[3]);
+    let [w, h, off_x, off_y] = available_geometry;
+    let [x, y] = center_position(
+        [w, h],
+        [artwork_resized.width(), foreground_height],
+        [off_x as i64, off_y as i64],
+    );
 
     imageops::overlay(&mut base, &artwork_resized, x, y);
 
     if let Some(buffer) = spotify_code {
-        let y_code = y + i64::from(artwork_resize + spacing);
-        let code_image = buffer.to_image();
+        let y_code = y + i64::from(artwork_size + spacing);
+        let mut code_image = buffer.to_image();
+        apply_rounded_corners(&mut code_image);
         imageops::overlay(&mut base, &code_image, x, y_code)
     }
 
     base
 }
 
-fn round_corners(image: &mut RgbaImage, radius: f32) {
-    let (width, height) = (image.dimensions().0 as f32, image.dimensions().1 as f32);
-
-    let corner_centers = [
-        (radius, radius),
-        (width - radius, radius),
-        (radius, height - radius),
-        (width - radius, height - radius),
-    ];
-
-    for (x, y, p) in image.enumerate_pixels_mut() {
-        let (fx, fy) = (x as f32, y as f32);
-
-        // Check if the pixel is in one of the four corner regions
-        let in_corner = fx < radius && fy < radius
-            || fx > width - radius && fy < radius
-            || fx < radius && fy > height - radius
-            || fx > width - radius && fy > height - radius;
-
-        if in_corner {
-            // Find the nearest corner center and check if we're outside its circle
-            let nearest = corner_centers
-                .iter()
-                .min_by(|(ax, ay), (bx, by)| {
-                    f32::hypot(fx - ax, fy - ay).total_cmp(&f32::hypot(fx - bx, fy - by))
-                })
-                .unwrap();
-
-            if f32::hypot(fx - nearest.0, fy - nearest.1) > radius {
-                p.0[3] = 0; // transparent — only touch alpha, leave RGB alone
-            }
-        }
-    }
+fn center_position(container: Size, content: [u32; 2], offset: [i64; 2]) -> [i64; 2] {
+    [
+        (container[0] as i64 - content[0] as i64) / 2 + offset[0],
+        (container[1] as i64 - content[1] as i64) / 2 + offset[1],
+    ]
 }

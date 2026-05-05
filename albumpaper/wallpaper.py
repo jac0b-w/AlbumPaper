@@ -47,7 +47,7 @@ class BackgroundType(enum.StrEnum):
 
 class GenerateWallpaper:
     def __init__(self, app: QtWidgets.QApplication) -> None:
-        self.artwork_resize = ConfigManager.settings["foreground"]["size"]
+        self.artwork_size = ConfigManager.settings["foreground"]["size"]
 
         self.blur_strength = ConfigManager.background["global"]["blur_strength"]
 
@@ -192,7 +192,7 @@ class GenerateWallpaper:
                     background=background_config,
                     foreground=structs.ForegroundConfig(
                         show_artwork=self.foreground_enabled,
-                        artwork_resize=self.artwork_resize,
+                        artwork_size=self.artwork_size,
                         drop_shadow=self.drop_shadow,
                         rounded_corners=self.rounded_corners,
                         spotify_code=spotify_code,
