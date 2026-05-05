@@ -624,6 +624,11 @@ class ForegroundTab(QtWidgets.QGroupBox):
         self.spin_box.setMaximum(max_res)
         self.spin_box.setSingleStep(interval)
 
+        rounded_corners_checkbox = ConfigManager.register(
+            ("settings", "foreground", "rounded_corners"),
+            QtWidgets.QCheckBox("Rounded Corners"),
+        )
+
         drop_shadow_checkbox = ConfigManager.register(
             ("settings", "foreground", "drop_shadow"),
             QtWidgets.QCheckBox("Drop Shadow"),
@@ -638,8 +643,9 @@ class ForegroundTab(QtWidgets.QGroupBox):
         layout.addWidget(label, 1, 0)
         layout.addWidget(self.slider, 1, 1)
         layout.addWidget(self.spin_box, 1, 2)
-        layout.addWidget(drop_shadow_checkbox, 2, 0, 1, 3)
-        layout.addWidget(spotify_codes_checkbox, 3, 0, 1, 3)
+        layout.addWidget(rounded_corners_checkbox, 2, 0, 1, 3)
+        layout.addWidget(drop_shadow_checkbox, 3, 0, 1, 3)
+        layout.addWidget(spotify_codes_checkbox, 4, 0, 1, 3)
         layout.setAlignment(QtCore.Qt.AlignTop)
 
         self.setTitle("Show Foreground Art")
