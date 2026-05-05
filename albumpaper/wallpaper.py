@@ -69,6 +69,7 @@ class GenerateWallpaper:
         )
 
         self.drop_shadow = ConfigManager.settings["foreground"]["drop_shadow"]
+        self.rounded_corners = ConfigManager.settings["foreground"]["rounded_corners"]
 
     @staticmethod
     def color_difference(c1: Color, c2: Color) -> float:
@@ -169,14 +170,12 @@ class GenerateWallpaper:
             (BackgroundType.LOWPOLY, self.lowpoly_background),
             (BackgroundType.ALBUM_ART, self.albumart_background),
             (BackgroundType.DEFAULT_WALLPAPER, self.defaultwallpaper_background),
-            (BackgroundType.POINTILLIST, self.pointillist_background)
+            (BackgroundType.POINTILLIST, self.pointillist_background),
         ]
-        enabled_bg_funcs = [
+        # Pick a random enabled background
+        background_config: structs.BackgroundConfig = random.choice([
             bg[1] for bg in backgrounds if ConfigManager.background[bg[0]]["enabled"]
-        ]
-        background_config: structs.BackgroundConfig = random.choice(enabled_bg_funcs)(
-            track
-        )
+        ])(track)
 
         image = track.artwork
 
@@ -185,7 +184,7 @@ class GenerateWallpaper:
         if self.spotify_code and track.spotify_code_image is not None:
             spotify_code = structs.PythonImageBuffer(track.spotify_code_image)
 
-        with timer(label=background_config.background_type) as t:
+        with timer(label=background_config.background_type):
             albumpaper_rs.generate_save_wallpaper(
                 structs.GenerationConfig(
                     project_root=str(AppPaths.PROJECT_ROOT.absolute()),
@@ -195,6 +194,7 @@ class GenerateWallpaper:
                         show_artwork=self.foreground_enabled,
                         artwork_resize=self.artwork_resize,
                         drop_shadow=self.drop_shadow,
+                        rounded_corners=self.rounded_corners,
                         spotify_code=spotify_code,
                     ),
                     display_geometry=self.display_geometry[:2],
@@ -250,10 +250,6 @@ class GenerateWallpaper:
     def lowpoly_background(self, _track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.LOWPOLY
 
-        blur_radius = None
-        if ConfigManager.background[background_type]["blur"]:
-            blur_radius = self.blur_strength
-
         n_samples = {
             1: 5000,
             2: 10_000,
@@ -263,21 +259,16 @@ class GenerateWallpaper:
             6: 110_000,
             7: 150_000,
             8: 210_000,
-        }[ConfigManager.background["lowpoly"]["detail_level"]]
+        }[ConfigManager.background["global"]["detail_level"]]
 
         return structs.BackgroundConfig(
             background_type=background_type,
-            blur_radius=blur_radius,
             n_samples=n_samples,
         )
 
     def pointillist_background(self, _track: Track) -> structs.BackgroundConfig:
         background_type = BackgroundType.POINTILLIST
 
-        blur_radius = None
-        if ConfigManager.background[background_type]["blur"]:
-            blur_radius = self.blur_strength
-
         n_samples = {
             1: 5000,
             2: 10_000,
@@ -287,11 +278,10 @@ class GenerateWallpaper:
             6: 110_000,
             7: 150_000,
             8: 210_000,
-        }[ConfigManager.background["lowpoly"]["detail_level"]]
+        }[ConfigManager.background["global"]["detail_level"]]
 
         return structs.BackgroundConfig(
             background_type=background_type,
-            blur_radius=blur_radius,
             n_samples=n_samples,
         )
 

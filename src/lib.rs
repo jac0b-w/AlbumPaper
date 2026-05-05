@@ -1,5 +1,6 @@
 #![allow(clippy::manual_map)]
 
+use geometrize::{SamplingParams, geometrize};
 use image::{
     DynamicImage, GrayAlphaImage, ImageBuffer, ImageReader, LumaA, RgbImage, Rgba, RgbaImage,
     imageops,
@@ -14,7 +15,6 @@ use std::{
     hash::{Hash, Hasher},
 };
 use zune_jpeg::JpegDecoder;
-use geometrize::{SamplingParams, geometrize};
 
 pub mod gradient;
 pub mod noise;
@@ -72,6 +72,7 @@ pub struct ForegroundConfig {
     pub show_artwork: bool,
     pub artwork_resize: u32,
     pub drop_shadow: bool,
+    pub rounded_corners: bool,
     pub spotify_code: Option<PythonImageBuffer>,
 }
 
@@ -137,7 +138,7 @@ pub fn generate_wallpaper(config: GenerationConfig, app_paths: &AppPaths) -> Rgb
                 config.display_geometry[0],
                 config.display_geometry[1],
             );
-            let lowpoly_img = DynamicImage::ImageRgba8(
+            DynamicImage::ImageRgba8(
                 geometrize(
                     DynamicImage::ImageRgb8(resized),
                     geometrize::Style::Lowpoly,
@@ -146,12 +147,7 @@ pub fn generate_wallpaper(config: GenerationConfig, app_paths: &AppPaths) -> Rgb
                 )
                 .unwrap(),
             )
-            .to_rgb8();
-            image_background(
-                lowpoly_img,
-                config.display_geometry,
-                config.background.blur_radius,
-            )
+            .to_rgb8()
         }
         "pointillist" => {
             let resized = fast_resize(
@@ -159,7 +155,7 @@ pub fn generate_wallpaper(config: GenerationConfig, app_paths: &AppPaths) -> Rgb
                 config.display_geometry[0],
                 config.display_geometry[1],
             );
-            let pointillist_img = DynamicImage::ImageRgba8(
+            DynamicImage::ImageRgba8(
                 geometrize(
                     DynamicImage::ImageRgb8(resized),
                     geometrize::Style::Pointillist { noise: 0.3 },
@@ -168,12 +164,7 @@ pub fn generate_wallpaper(config: GenerationConfig, app_paths: &AppPaths) -> Rgb
                 )
                 .unwrap(),
             )
-            .to_rgb8();
-            image_background(
-                pointillist_img,
-                config.display_geometry,
-                config.background.blur_radius,
-            )
+            .to_rgb8()
         }
         "albumart" => image_background(
             artwork.clone(),
@@ -205,9 +196,10 @@ pub fn generate_wallpaper(config: GenerationConfig, app_paths: &AppPaths) -> Rgb
         return DynamicImage::ImageRgba8(base).to_rgb8();
     }
 
-    let foreground = generate_foreground(
+    let mut foreground = generate_foreground(
         artwork,
         config.foreground.artwork_resize,
+        config.foreground.rounded_corners,
         config.foreground.spotify_code,
         config.display_geometry,
         config.available_geometry,
@@ -341,9 +333,31 @@ pub fn fast_resize(src_image: &RgbImage, nwidth: u32, nheight: u32) -> RgbImage 
     dst_image
 }
 
+pub fn fast_resize_rgba(src_image: &RgbaImage, nwidth: u32, nheight: u32) -> RgbaImage {
+    use fast_image_resize::{ResizeOptions, Resizer};
+
+    let mut dst_image = RgbaImage::new(nwidth, nheight);
+
+    let mut resizer = Resizer::new();
+    resizer
+        .resize(
+            src_image,
+            &mut dst_image,
+            &ResizeOptions::new()
+                .resize_alg(fast_image_resize::ResizeAlg::Convolution(
+                    fast_image_resize::FilterType::Lanczos3,
+                ))
+                .fit_into_destination(None)
+                .use_alpha(true),
+        )
+        .unwrap();
+    dst_image
+}
+
 fn generate_foreground(
     artwork: RgbImage,
     artwork_resize: u32,
+    rounded_corners: bool,
     spotify_code: Option<PythonImageBuffer>,
     display_geometry: [u32; 2],
     available_geometry: [u32; 4],
@@ -352,8 +366,14 @@ fn generate_foreground(
     let mut base =
         RgbaImage::from_pixel(display_geometry[0], display_geometry[1], Rgba([0, 0, 0, 0]));
 
+    let mut artwork = DynamicImage::ImageRgb8(artwork).to_rgba8();
+
+    if rounded_corners {
+        round_corners(&mut artwork, 20.0);
+    }
+
     let artwork_resized =
-        DynamicImage::ImageRgb8(fast_resize(&artwork, artwork_resize, artwork_resize)).to_rgba8();
+        DynamicImage::ImageRgba8(fast_resize_rgba(&artwork, artwork_resize, artwork_resize));
 
     let spacing = display_geometry[1] / 100;
 
@@ -376,4 +396,39 @@ fn generate_foreground(
     }
 
     base
+}
+
+fn round_corners(image: &mut RgbaImage, radius: f32) {
+    let (width, height) = (image.dimensions().0 as f32, image.dimensions().1 as f32);
+
+    let corner_centers = [
+        (radius, radius),
+        (width - radius, radius),
+        (radius, height - radius),
+        (width - radius, height - radius),
+    ];
+
+    for (x, y, p) in image.enumerate_pixels_mut() {
+        let (fx, fy) = (x as f32, y as f32);
+
+        // Check if the pixel is in one of the four corner regions
+        let in_corner = fx < radius && fy < radius
+            || fx > width - radius && fy < radius
+            || fx < radius && fy > height - radius
+            || fx > width - radius && fy > height - radius;
+
+        if in_corner {
+            // Find the nearest corner center and check if we're outside its circle
+            let nearest = corner_centers
+                .iter()
+                .min_by(|(ax, ay), (bx, by)| {
+                    f32::hypot(fx - ax, fy - ay).total_cmp(&f32::hypot(fx - bx, fy - by))
+                })
+                .unwrap();
+
+            if f32::hypot(fx - nearest.0, fy - nearest.1) > radius {
+                p.0[3] = 0; // transparent — only touch alpha, leave RGB alone
+            }
+        }
+    }
 }
